@@ -99,18 +99,22 @@ export async function fetchProducts(): Promise<Product[]> {
   return INITIAL_PRODUCTS;
 }
 
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export async function saveProduct(input: ProductInput): Promise<Product> {
   const base_price = Number(input.base_price) || 0;
   const discount = Number(input.discount) || 0;
   const final_price = Math.max(0, base_price - discount);
   const formattedImageUrl = cleanAndFormatImageUrl(input.image_url);
-
-  const productData = {
-    ...input,
-    base_price,
-    discount,
-    image_url: formattedImageUrl,
-  };
 
   if (isSupabaseConfigured()) {
     if (input.id) {
@@ -118,14 +122,14 @@ export async function saveProduct(input: ProductInput): Promise<Product> {
       const { data, error } = await supabase
         .from('products')
         .update({
-          sku: productData.sku,
-          name: productData.name,
-          brand: productData.brand,
-          category: productData.category,
-          detail: productData.detail,
-          base_price: productData.base_price,
-          discount: productData.discount,
-          image_url: productData.image_url,
+          sku: input.sku.trim(),
+          name: input.name.trim(),
+          brand: input.brand.trim(),
+          category: input.category || 'ทั่วไป',
+          detail: input.detail || null,
+          base_price,
+          discount,
+          image_url: formattedImageUrl,
         })
         .eq('id', input.id)
         .select()
@@ -134,10 +138,23 @@ export async function saveProduct(input: ProductInput): Promise<Product> {
       if (error) throw new Error(error.message);
       return data as Product;
     } else {
-      // Insert new
+      // Insert new: generate a valid UUID explicitly so it never fails even if DB lacks DEFAULT gen_random_uuid()
+      const newId = generateUUID();
+      const insertData = {
+        id: newId,
+        sku: input.sku.trim(),
+        name: input.name.trim(),
+        brand: input.brand.trim(),
+        category: input.category || 'ทั่วไป',
+        detail: input.detail || null,
+        base_price,
+        discount,
+        image_url: formattedImageUrl,
+      };
+
       const { data, error } = await supabase
         .from('products')
-        .insert([productData])
+        .insert([insertData])
         .select()
         .single();
 
@@ -148,7 +165,7 @@ export async function saveProduct(input: ProductInput): Promise<Product> {
 
   // Local storage mock fallback
   const newProduct: Product = {
-    id: input.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `mock-${Date.now()}`),
+    id: input.id || generateUUID(),
     sku: input.sku,
     name: input.name,
     brand: input.brand,
@@ -249,11 +266,32 @@ export async function bulkUpsertProducts(products: ProductInput[]): Promise<numb
   if (products.length === 0) return 0;
 
   if (isSupabaseConfigured()) {
+    // Look up existing products by SKU to preserve existing IDs
+    const skus = products.map((p) => p.sku.trim());
+    const skuToIdMap = new Map<string, string>();
+
+    try {
+      const { data: existingRows } = await supabase
+        .from('products')
+        .select('id, sku')
+        .in('sku', skus);
+
+      if (existingRows) {
+        existingRows.forEach((r: { id: string; sku: string }) => {
+          if (r.sku) skuToIdMap.set(r.sku.toLowerCase(), r.id);
+        });
+      }
+    } catch (e) {
+      console.warn('Could not query existing IDs during bulk upsert:', e);
+    }
+
     const payload = products.map((p) => {
+      const existingId = skuToIdMap.get(p.sku.trim().toLowerCase());
       return {
-        sku: p.sku,
-        name: p.name,
-        brand: p.brand,
+        id: existingId || generateUUID(),
+        sku: p.sku.trim(),
+        name: p.name.trim(),
+        brand: p.brand.trim(),
         category: p.category || 'ทั่วไป',
         detail: p.detail || null,
         base_price: Number(p.base_price) || 0,
