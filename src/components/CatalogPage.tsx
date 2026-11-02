@@ -19,7 +19,6 @@ import {
   List,
   Heart,
   Home,
-  Sparkles,
   Wrench,
   ChevronDown,
   Check,
@@ -42,7 +41,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   const [sortBy, setSortBy] = useState<string>('created_at-desc');
 
   // Active Bottom Nav Tab (Mobile)
-  const [activeNavTab, setActiveNavTab] = useState<'all' | 'new' | 'favorites'>('all');
+  const [activeNavTab, setActiveNavTab] = useState<'all' | 'favorites'>('all');
 
   // View Mode: 'list' (TWC row-list default) vs 'grid' (2-col/4-col)
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
@@ -134,7 +133,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   };
 
   // Bottom Nav Bar Tab Switcher
-  const handleNavTabClick = (tab: 'all' | 'new' | 'favorites') => {
+  const handleNavTabClick = (tab: 'all' | 'favorites') => {
     setActiveNavTab(tab);
     setCurrentPage(1);
 
@@ -142,9 +141,6 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       setSelectedBrand('All');
       setOnlyFavorites(false);
       setSortBy('created_at-desc');
-    } else if (tab === 'new') {
-      setSortBy('created_at-desc');
-      setOnlyFavorites(false);
     } else if (tab === 'favorites') {
       setOnlyFavorites(true);
     }
@@ -845,59 +841,35 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       {/* ============================================================== */}
       {/* MOBILE BOTTOM NAVIGATION BAR                                   */}
       {/* ============================================================== */}
-      <nav className="sm:hidden fixed bottom-0 inset-x-0 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800 z-40 px-2 py-1.5 flex justify-around items-center">
+      <nav className="sm:hidden fixed bottom-0 inset-x-0 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800 z-40 px-8 py-2 flex justify-around items-center">
         {/* หน้าหลัก */}
         <button
           type="button"
           onClick={() => handleNavTabClick('all')}
-          className={`flex flex-col items-center gap-0.5 p-1 text-[10px] font-semibold transition-colors ${
+          className={`flex flex-col items-center gap-1 p-1 text-xs font-bold transition-colors ${
             activeNavTab === 'all' ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-300'
           }`}
         >
-          <Home className="w-4 h-4" />
+          <Home className="w-5 h-5" />
           <span>หน้าหลัก</span>
-        </button>
-
-        {/* สินค้าใหม่ */}
-        <button
-          type="button"
-          onClick={() => handleNavTabClick('new')}
-          className={`flex flex-col items-center gap-0.5 p-1 text-[10px] font-semibold transition-colors ${
-            activeNavTab === 'new' ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-300'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>สินค้าใหม่</span>
         </button>
 
         {/* รายการโปรด */}
         <button
           type="button"
           onClick={() => handleNavTabClick('favorites')}
-          className={`flex flex-col items-center gap-0.5 p-1 text-[10px] font-semibold relative transition-colors ${
+          className={`flex flex-col items-center gap-1 p-1 text-xs font-bold relative transition-colors ${
             activeNavTab === 'favorites' ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-300'
           }`}
         >
-          <Heart className={`w-4 h-4 ${favorites.length > 0 ? 'fill-rose-500 text-rose-500' : ''}`} />
+          <Heart className={`w-5 h-5 ${favorites.length > 0 ? 'fill-rose-500 text-rose-500' : ''}`} />
           <span>รายการโปรด</span>
           {favorites.length > 0 && (
-            <span className="absolute top-0 right-1 bg-rose-500 text-white text-[9px] font-extrabold w-3.5 h-3.5 rounded-full flex items-center justify-center leading-none">
+            <span className="absolute top-0 right-1 bg-rose-500 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center leading-none">
               {favorites.length}
             </span>
           )}
         </button>
-
-        {/* จัดการหลังบ้าน (ถ้ามีปุ่ม Admin - ต้องใส่รหัสผ่าน) */}
-        {onOpenAdmin && (
-          <button
-            type="button"
-            onClick={handleAdminClick}
-            className="flex flex-col items-center gap-0.5 p-1 text-[10px] font-semibold text-zinc-500 hover:text-amber-400 transition-colors"
-          >
-            <SlidersHorizontal className="w-4 h-4" />
-            <span>จัดการ</span>
-          </button>
-        )}
       </nav>
 
       {/* ============================================================== */}
