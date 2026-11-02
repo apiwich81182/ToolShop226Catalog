@@ -74,10 +74,7 @@ export async function fetchProducts(): Promise<Product[]> {
       if (error) {
         console.warn('Supabase fetch error, fallback to local:', error.message);
       } else if (data && data.length > 0) {
-        return data.map((item) => ({
-          ...item,
-          stock_quantity: item.stock_quantity ?? (item.is_in_stock ? 10 : 0),
-        })) as Product[];
+        return data as Product[];
       }
     } catch (err) {
       console.warn('Supabase connection failed, using local storage fallback:', err);
@@ -91,21 +88,7 @@ export async function fetchProducts(): Promise<Product[]> {
       try {
         const parsed: Product[] = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Normalize products so stock_quantity and is_in_stock are always consistent
-          const normalized = parsed.map((item) => {
-            const inStock = Boolean(item.is_in_stock);
-            const qty = item.stock_quantity !== undefined
-              ? Number(item.stock_quantity) || 0
-              : (inStock ? 10 : 0);
-            return {
-              ...item,
-              is_in_stock: inStock,
-              stock_quantity: inStock ? Math.max(1, qty) : 0,
-            };
-          });
-          // Update cached storage with normalized structure
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(normalized));
-          return normalized;
+          return parsed;
         }
       } catch (e) {
         console.error('Failed to parse cached products', e);
@@ -116,93 +99,16 @@ export async function fetchProducts(): Promise<Product[]> {
   return INITIAL_PRODUCTS;
 }
 
-export async function toggleProductStock(
-  id: string,
-  currentStatus: boolean,
-  targetPromo?: string
-): Promise<boolean> {
-  const newStatus = !currentStatus;
-  const newPromo = targetPromo || (newStatus ? 'พร้อมส่ง' : 'สินค้าหมด');
-  const newQty = newStatus ? 10 : 0;
-
-  if (isSupabaseConfigured()) {
-    try {
-      const updatePayload: Record<string, unknown> = {
-        is_in_stock: newStatus,
-        stock_quantity: newQty,
-        promo_text: newPromo,
-      };
-      await supabase
-        .from('products')
-        .update(updatePayload)
-        .or(`id.eq.${id},sku.eq.${id}`);
-    } catch (err) {
-      console.warn('Supabase toggleProductStock warning:', err);
-    }
-  }
-
-  // Update local storage for demo/offline resilience
-  if (typeof window !== 'undefined') {
-    const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (cached) {
-      const products: Product[] = JSON.parse(cached);
-      const updated = products.map((p) => {
-        if (p.id === id || p.sku === id) {
-          return {
-            ...p,
-            is_in_stock: newStatus,
-            stock_quantity: newQty,
-            promo_text: newPromo,
-          };
-        }
-        return p;
-      });
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-    }
-  }
-
-  return newStatus;
-}
-
-export async function updateProductStockQuantity(id: string, newQuantity: number): Promise<void> {
-  const qty = Math.max(0, Number(newQuantity) || 0);
-  const inStock = qty > 0;
-
-  if (isSupabaseConfigured()) {
-    const { error } = await supabase
-      .from('products')
-      .update({ stock_quantity: qty, is_in_stock: inStock })
-      .eq('id', id);
-
-    if (error) throw new Error(error.message);
-  }
-
-  if (typeof window !== 'undefined') {
-    const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (cached) {
-      const products: Product[] = JSON.parse(cached);
-      const updated = products.map((p) =>
-        p.id === id ? { ...p, stock_quantity: qty, is_in_stock: inStock } : p
-      );
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-    }
-  }
-}
-
 export async function saveProduct(input: ProductInput): Promise<Product> {
   const base_price = Number(input.base_price) || 0;
   const discount = Number(input.discount) || 0;
   const final_price = Math.max(0, base_price - discount);
   const formattedImageUrl = cleanAndFormatImageUrl(input.image_url);
-  const is_in_stock = Boolean(input.is_in_stock);
-  const stock_quantity = is_in_stock ? Math.max(1, Number(input.stock_quantity) || 10) : 0;
 
   const productData = {
     ...input,
     base_price,
     discount,
-    stock_quantity,
-    is_in_stock,
     image_url: formattedImageUrl,
   };
 
@@ -219,10 +125,7 @@ export async function saveProduct(input: ProductInput): Promise<Product> {
           detail: productData.detail,
           base_price: productData.base_price,
           discount: productData.discount,
-          promo_text: productData.promo_text,
           image_url: productData.image_url,
-          is_in_stock: productData.is_in_stock,
-          stock_quantity: productData.stock_quantity,
         })
         .eq('id', input.id)
         .select()
@@ -249,15 +152,12 @@ export async function saveProduct(input: ProductInput): Promise<Product> {
     sku: input.sku,
     name: input.name,
     brand: input.brand,
-    category: input.category || 'General',
+    category: input.category || 'ทั่วไป',
     detail: input.detail || null,
     base_price,
     discount,
     final_price,
-    promo_text: input.promo_text || null,
     image_url: formattedImageUrl,
-    is_in_stock,
-    stock_quantity,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -331,20 +231,15 @@ export async function bulkUpsertProducts(products: ProductInput[]): Promise<numb
 
   if (isSupabaseConfigured()) {
     const payload = products.map((p) => {
-      const stock_quantity = Math.max(0, Number(p.stock_quantity) || 0);
-      const is_in_stock = p.is_in_stock !== undefined ? p.is_in_stock : stock_quantity > 0;
       return {
         sku: p.sku,
         name: p.name,
         brand: p.brand,
-        category: p.category || 'General',
+        category: p.category || 'ทั่วไป',
         detail: p.detail || null,
         base_price: Number(p.base_price) || 0,
         discount: Number(p.discount) || 0,
-        promo_text: p.promo_text || null,
         image_url: cleanAndFormatImageUrl(p.image_url),
-        stock_quantity: is_in_stock ? Math.max(1, stock_quantity) : 0,
-        is_in_stock,
       };
     });
 
@@ -370,27 +265,18 @@ export async function bulkUpsertProducts(products: ProductInput[]): Promise<numb
       const disc = Number(p.discount) || 0;
       const formattedImg = cleanAndFormatImageUrl(p.image_url);
       const existingProduct = map.get(p.sku);
-      const stock_quantity =
-        p.stock_quantity !== undefined
-          ? Math.max(0, Number(p.stock_quantity) || 0)
-          : existingProduct?.stock_quantity ?? 10;
-      const is_in_stock =
-        p.is_in_stock !== undefined ? p.is_in_stock : stock_quantity > 0;
 
       map.set(p.sku, {
         id: p.id || existingProduct?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `mock-${Math.random()}`),
         sku: p.sku,
         name: p.name,
         brand: p.brand,
-        category: p.category || 'General',
+        category: p.category || 'ทั่วไป',
         detail: p.detail || null,
         base_price: base,
         discount: disc,
         final_price: Math.max(0, base - disc),
-        promo_text: p.promo_text || null,
         image_url: formattedImg || existingProduct?.image_url || null,
-        stock_quantity: is_in_stock ? Math.max(1, stock_quantity) : 0,
-        is_in_stock,
         created_at: existingProduct?.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });

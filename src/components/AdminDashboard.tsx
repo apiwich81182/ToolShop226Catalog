@@ -4,7 +4,6 @@ import React, { useState, useRef, useTransition, useEffect, useMemo } from 'reac
 import * as XLSX from 'xlsx';
 import { Product, ProductInput } from '@/types/product';
 import {
-  toggleProductStock,
   saveProduct,
   deleteProduct,
   uploadProductImage,
@@ -67,7 +66,6 @@ type AdminSortField =
   | 'base_price'
   | 'discount'
   | 'final_price'
-  | 'is_in_stock'
   | 'created_at';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -111,7 +109,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [pricingMode, setPricingMode] = useState<'new_price' | 'amount' | 'percent' | 'inquire'>('new_price');
   const [formDetail, setFormDetail] = useState('');
   const [formImageUrl, setFormImageUrl] = useState('');
-  const [formIsInStock, setFormIsInStock] = useState(true);
 
   // Image Upload State (Single file)
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -142,13 +139,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setLocalProducts(products);
   }, [products]);
 
-  // Count in-stock vs out-of-stock
-  const inStockCount = useMemo(() => {
-    return localProducts.filter((p) => p.is_in_stock).length;
-  }, [localProducts]);
-
-  const outOfStockCount = Math.max(0, localProducts.length - inStockCount);
-
   const showToast = (type: 'success' | 'error' | 'info', text: string) => {
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { id, type, text }]);
@@ -162,48 +152,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       sessionStorage.removeItem('admin_auth');
     }
     onBackToCatalog();
-  };
-
-  // --------------------------------------------------------------------------
-  // 1. Stock Toggle Management
-  // --------------------------------------------------------------------------
-  const handleToggleStock = async (product: Product) => {
-    const oldStatus = product.is_in_stock;
-    const newStatus = !oldStatus;
-    const newPromo = newStatus
-      ? 'พร้อมส่ง'
-      : product.promo_text === 'Coming Soon' || product.promo_text === 'สอบถาม'
-      ? product.promo_text
-      : 'สินค้าหมด';
-
-    // Optimistic UI Update locally
-    const updated = localProducts.map((p) => {
-      if (p.id === product.id || p.sku === product.sku) {
-        return {
-          ...p,
-          is_in_stock: newStatus,
-          stock_quantity: newStatus ? 10 : 0,
-          promo_text: newPromo,
-        };
-      }
-      return p;
-    });
-
-    setLocalProducts(updated);
-    if (onProductsUpdate) onProductsUpdate(updated);
-
-    try {
-      await toggleProductStock(product.id || product.sku, oldStatus, newPromo);
-      showToast(
-        'success',
-        `อัปเดตสถานะ [${product.sku}]: ${newStatus ? '✓ มีสินค้าพร้อมส่ง' : '✕ ' + newPromo}`
-      );
-    } catch (err: unknown) {
-      setLocalProducts(localProducts);
-      if (onProductsUpdate) onProductsUpdate(localProducts);
-      const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการอัปเดตสถานะสต็อก';
-      showToast('error', msg);
-    }
   };
 
   // --------------------------------------------------------------------------
@@ -223,7 +171,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setFormImageUrl('');
     setImagePreview(null);
     setSelectedFile(null);
-    setFormIsInStock(true);
     setIsModalOpen(true);
   };
 
@@ -252,7 +199,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setFormDiscountPercent(calculateDiscountPercent(base, disc));
     }
 
-    setFormIsInStock(true);
     setFormDetail(product.detail || '');
     setFormImageUrl(product.image_url || '');
     setImagePreview(product.image_url || null);
@@ -374,10 +320,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         detail: formDetail.trim() || null,
         base_price: basePriceNum,
         discount: discountNum,
-        promo_text: null,
         image_url: finalImageUrl || null,
-        stock_quantity: 10,
-        is_in_stock: true,
       };
 
       try {
@@ -550,10 +493,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               detail: null,
               base_price: rawBasePrice,
               discount: discount,
-              promo_text: isInquire ? 'Coming Soon' : 'พร้อมส่ง',
               image_url: cleanedImageUrl,
-              stock_quantity: 1,
-              is_in_stock: true,
             };
           });
 
@@ -562,7 +502,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
 
         const count = await bulkUpsertProducts(validProducts);
-        showToast('success', `นำเข้าข้อมูลสินค้าสำเร็จ ${count} รายการ (สถานะพร้อมส่งทั้งหมด)`);
+        showToast('success', `นำเข้าข้อมูลสินค้าสำเร็จ ${count} รายการ`);
         onRefresh();
 
         // Also update brands
@@ -695,9 +635,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           else comparison = a.final_price - b.final_price;
           break;
         }
-        case 'is_in_stock':
-          comparison = Number(a.is_in_stock) - Number(b.is_in_stock);
-          break;
         case 'created_at':
         default:
           comparison =
@@ -955,14 +892,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="flex flex-wrap items-center gap-4 text-xs text-zinc-400 w-full md:w-auto justify-end">
             <span>
               พบสินค้า: <strong className="text-amber-400 font-bold">{totalCount}</strong> รายการ
-            </span>
-            <span>
-              พร้อมส่ง:{' '}
-              <strong className="text-emerald-400 font-bold">{inStockCount}</strong>
-            </span>
-            <span>
-              หมด:{' '}
-              <strong className="text-rose-400 font-bold">{outOfStockCount}</strong>
             </span>
           </div>
         </div>

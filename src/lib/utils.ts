@@ -68,61 +68,11 @@ export function cleanAndFormatImageUrl(rawUrl: string | null | undefined): strin
 export function isPriceInquiry(product: {
   base_price?: number | string | null;
   final_price?: number | string | null;
-  promo_text?: string | null;
 } | null | undefined): boolean {
   if (!product) return false;
-  if (product.promo_text === 'สอบถามราคา' || product.promo_text === 'ราคา: สอบถาม') return true;
   const base = Number(product.base_price);
   const final = Number(product.final_price);
   return (isNaN(base) || base <= 0) && (isNaN(final) || final <= 0);
-}
-
-export type StatusBadgeVariant = 'in_stock' | 'coming_soon' | 'inquire' | 'out_of_stock';
-
-export interface ProductStatusBadgeInfo {
-  text: string;
-  variant: StatusBadgeVariant;
-}
-
-/**
- * Get display badge for product status (พร้อมส่ง, Coming Soon, สอบถาม, สินค้าหมด)
- * Logic:
- * 1. If product is in stock (is_in_stock === true), status is ALWAYS "พร้อมส่ง"
- * 2. If product is NOT in stock (is_in_stock === false):
- *    - 'Coming Soon' if promo_text is Coming Soon
- *    - 'สอบถาม' if promo_text is สอบถาม
- *    - 'สินค้าหมด' otherwise
- */
-export function getProductStatusBadge(product: {
-  is_in_stock: boolean;
-  promo_text?: string | null;
-  base_price?: number | string | null;
-  final_price?: number | string | null;
-} | null | undefined): ProductStatusBadgeInfo {
-  if (!product) {
-    return { text: 'สอบถาม', variant: 'inquire' };
-  }
-
-  // When product is in stock, always display "พร้อมส่ง"
-  if (product.is_in_stock) {
-    return { text: 'พร้อมส่ง', variant: 'in_stock' };
-  }
-
-  // When product is not in stock, check specific badge type
-  const promo = product.promo_text?.trim();
-
-  if (promo === 'Coming Soon') {
-    return { text: 'Coming Soon', variant: 'coming_soon' };
-  }
-  if (promo === 'สอบถาม') {
-    return { text: 'สอบถาม', variant: 'inquire' };
-  }
-  if (promo === 'สินค้าหมด' || promo === 'หมด') {
-    return { text: 'สินค้าหมด', variant: 'out_of_stock' };
-  }
-
-  // Default out-of-stock badge
-  return { text: 'สินค้าหมด', variant: 'out_of_stock' };
 }
 
 export function generateLineMessage(product: Product): string {

@@ -277,10 +277,6 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
           const pctB = calculateDiscountPercent(b.base_price, b.discount);
           return pctB - pctA;
         });
-      case 'stock-desc':
-        return list.sort((a, b) => (b.stock_quantity ?? 0) - (a.stock_quantity ?? 0));
-      case 'stock-asc':
-        return list.sort((a, b) => (a.stock_quantity ?? 0) - (b.stock_quantity ?? 0));
       case 'created_at-desc':
       default:
         return list.sort((a, b) => {
@@ -631,7 +627,6 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                   <option value="discount_pct-desc">ส่วนลด: % สูงสุด</option>
                   <option value="brand-asc">ยี่ห้อ (A-Z)</option>
                   <option value="sku-asc">รหัสสินค้า (SKU)</option>
-                  <option value="stock-desc">สต็อก: มากสุด</option>
                 </select>
               </div>
 
