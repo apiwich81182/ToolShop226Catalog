@@ -708,134 +708,149 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* Header Bar (Black & Yellow Theme) */}
       <header className="bg-zinc-950/95 backdrop-blur-md border-b border-zinc-800 sticky top-0 z-30 shadow-xl">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onBackToCatalog}
-              className="p-2 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
-              title="กลับหน้าแคตาล็อก"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-black text-white flex items-center gap-2.5">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 flex items-center justify-center">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="/logo.png"
-                      alt="TOOL SHOP 226 Plus"
-                      className="w-full h-full object-contain drop-shadow"
-                    />
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 space-y-3">
+          {/* Row 1: Brand & Top Utilities (Back, Title, Product Count, Guide, Logout) */}
+          <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-zinc-850/80">
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                onClick={onBackToCatalog}
+                className="p-2 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors shrink-0"
+                title="กลับหน้าแคตาล็อก"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/logo.png"
+                    alt="TOOL SHOP 226 Plus"
+                    className="w-full h-full object-contain drop-shadow"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="text-base sm:text-lg font-black text-white truncate">
+                      TOOL SHOP 226 Plus Admin
+                    </h1>
+                    <span className="bg-zinc-850 text-amber-400 text-xs font-bold px-2.5 py-0.5 rounded-full border border-zinc-700/80 shrink-0">
+                      {localProducts.length} สินค้า
+                    </span>
                   </div>
-                  <span>TOOL SHOP 226 Plus Admin</span>
-                </h1>
-                <span className="bg-zinc-800 text-amber-400 text-xs font-bold px-2 py-0.5 rounded-full border border-zinc-700">
-                  {localProducts.length} สินค้า
-                </span>
+                  <p className="text-[11px] sm:text-xs text-zinc-400 truncate hidden sm:block">
+                    จัดการแคตาล็อกสินค้า อัปโหลดรูปภาพ และซิงค์ข้อมูลผ่าน Excel / CSV
+                  </p>
+                </div>
               </div>
-              <p className="text-[11px] sm:text-xs text-zinc-400 mt-0.5">
-                จัดการสต็อกสินค้า อัปโหลดรูปภาพ และซิงค์ข้อมูลผ่าน Excel / CSV
-              </p>
+            </div>
+
+            {/* Top Right: Guide & Logout */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Guide / SOP Button */}
+              <button
+                onClick={() => setIsGuideModalOpen(true)}
+                className="text-xs font-bold px-3 py-1.5 sm:px-3.5 sm:py-2 bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 hover:text-amber-300 rounded-xl border border-amber-400/40 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                title="คู่มือและวิธีใช้งานแถบเครื่องมือหลังบ้าน (SOP)"
+              >
+                <HelpCircle className="w-4 h-4 text-amber-400" />
+                <span>วิธีใช้งาน</span>
+              </button>
+
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="text-xs font-semibold px-3 py-1.5 sm:px-3.5 sm:py-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-800/80 rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                title="ออกจากระบบแอดมิน (กลับเป็นโหมดแคตาล็อก)"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden xs:inline">ออกจากระบบ</span>
+                <span className="xs:hidden">ออก</span>
+              </button>
             </div>
           </div>
 
-          {/* Action Toolbar */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Guide / SOP Button */}
-            <button
-              onClick={() => setIsGuideModalOpen(true)}
-              className="text-xs font-semibold px-3 py-2 bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 hover:text-amber-300 rounded-xl border border-amber-400/40 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
-              title="คู่มือและวิธีใช้งานแถบเครื่องมือหลังบ้าน (SOP)"
-            >
-              <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
-              <span>วิธีใช้งาน</span>
-            </button>
+          {/* Row 2: Action Command Toolbar (Grouped logically) */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            {/* Operational Tools (Excel, Images, Brands) */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Excel Group */}
+              <div className="inline-flex items-center bg-zinc-900 border border-zinc-800 rounded-xl p-0.5 shadow-2xs">
+                {/* Template Download */}
+                <button
+                  onClick={handleDownloadTemplate}
+                  className="text-xs font-semibold px-2.5 sm:px-3 py-1.5 text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                  title="ดาวน์โหลดเทมเพลต Excel เปล่า (6 คอลัมน์)"
+                >
+                  <Download className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>โหลดเทมเพลต</span>
+                </button>
 
-            {/* Manage Brands */}
-            <button
-              onClick={() => setIsBrandModalOpen(true)}
-              className="text-xs font-semibold px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-amber-400 rounded-xl border border-zinc-800 transition-colors flex items-center gap-1.5 shadow-2xs"
-              title="จัดการรายชื่อยี่ห้อสินค้า"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
-              จัดการยี่ห้อ
-            </button>
+                {/* Export Catalog */}
+                <button
+                  onClick={handleExportCatalog}
+                  className="text-xs font-semibold px-2.5 sm:px-3 py-1.5 text-zinc-300 hover:text-emerald-400 hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer border-l border-zinc-800"
+                  title="ส่งออกข้อมูลทั้งหมดเป็น Excel (6 คอลัมน์)"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Export</span>
+                </button>
 
-            {/* Template Download */}
-            <button
-              onClick={handleDownloadTemplate}
-              className="text-xs font-semibold px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl border border-zinc-800 transition-colors flex items-center gap-1.5 shadow-2xs"
-              title="ดาวน์โหลดเทมเพลต Excel เปล่า (6 คอลัมน์)"
-            >
-              <Download className="w-3.5 h-3.5 text-zinc-400" />
-              โหลดเทมเพลต
-            </button>
+                {/* Import Excel */}
+                <input
+                  type="file"
+                  ref={excelInputRef}
+                  onChange={handleExcelImport}
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                />
+                <button
+                  onClick={() => excelInputRef.current?.click()}
+                  disabled={isImporting}
+                  className="text-xs font-bold px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 shadow-xs cursor-pointer ml-0.5"
+                  title="นำเข้าไฟล์ Excel หรือ CSV"
+                >
+                  {isImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  <span>{isImporting ? 'กำลังนำเข้า...' : 'Import Excel'}</span>
+                </button>
+              </div>
 
-            {/* Export Catalog */}
-            <button
-              onClick={handleExportCatalog}
-              className="text-xs font-semibold px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-emerald-400 rounded-xl border border-zinc-800 transition-colors flex items-center gap-1.5 shadow-2xs"
-              title="ส่งออกข้อมูลทั้งหมดเป็น Excel (6 คอลัมน์)"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-              Export
-            </button>
+              {/* Batch Images Upload */}
+              <input
+                type="file"
+                ref={batchImageInputRef}
+                onChange={handleBatchImagesUpload}
+                accept="image/png,image/jpeg,image/webp"
+                multiple
+                className="hidden"
+              />
+              <button
+                onClick={() => batchImageInputRef.current?.click()}
+                disabled={isBatchUploading}
+                className="text-xs font-semibold px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-colors flex items-center gap-1.5 disabled:opacity-50 shadow-xs cursor-pointer"
+                title="เลือกรูปหลายไฟล์พร้อมกัน โดยตั้งชื่อไฟล์เป็นรหัสสินค้า เช่น SATA-09014.jpg"
+              >
+                {isBatchUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Images className="w-3.5 h-3.5" />}
+                <span>{isBatchUploading ? (batchProgressText || 'กำลังอัปโหลด...') : 'อัปโหลดรูปชุด'}</span>
+              </button>
 
-            {/* Import Excel */}
-            <input
-              type="file"
-              ref={excelInputRef}
-              onChange={handleExcelImport}
-              accept=".xlsx,.xls,.csv"
-              className="hidden"
-            />
-            <button
-              onClick={() => excelInputRef.current?.click()}
-              disabled={isImporting}
-              className="text-xs font-semibold px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-colors flex items-center gap-1.5 disabled:opacity-50 shadow-xs"
-              title="นำเข้าไฟล์ Excel หรือ CSV"
-            >
-              {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {isImporting ? 'กำลังนำเข้า...' : 'Import Excel'}
-            </button>
+              {/* Manage Brands */}
+              <button
+                onClick={() => setIsBrandModalOpen(true)}
+                className="text-xs font-semibold px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-amber-400 rounded-xl border border-zinc-800 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                title="จัดการรายชื่อยี่ห้อสินค้า"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
+                <span>จัดการยี่ห้อ</span>
+              </button>
+            </div>
 
-            {/* Batch Images Upload */}
-            <input
-              type="file"
-              ref={batchImageInputRef}
-              onChange={handleBatchImagesUpload}
-              accept="image/png,image/jpeg,image/webp"
-              multiple
-              className="hidden"
-            />
-            <button
-              onClick={() => batchImageInputRef.current?.click()}
-              disabled={isBatchUploading}
-              className="text-xs font-semibold px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition-colors flex items-center gap-1.5 disabled:opacity-50 shadow-xs"
-              title="เลือกรูปหลายไฟล์พร้อมกัน โดยตั้งชื่อไฟล์เป็นรหัสสินค้า เช่น SATA-09014.jpg"
-            >
-              {isBatchUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Images className="w-4 h-4" />}
-              {isBatchUploading ? (batchProgressText || 'กำลังอัปโหลด...') : 'อัปโหลดรูปชุด'}
-            </button>
-
-            {/* Add Product Button */}
+            {/* Primary Action: Add Product */}
             <button
               onClick={openAddModal}
-              className="text-xs font-bold px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-zinc-950 rounded-xl transition-colors flex items-center gap-1.5 shadow-md"
+              className="text-xs font-black px-4 py-2 bg-amber-400 hover:bg-amber-300 text-zinc-950 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md hover:shadow-amber-400/20 active:scale-95 cursor-pointer shrink-0"
             >
               <Plus className="w-4 h-4" />
-              เพิ่มสินค้าใหม่
-            </button>
-
-            {/* Logout Button */}
-            <button
-              onClick={handleLogout}
-              className="text-xs font-semibold px-3 py-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-800/80 rounded-xl transition-colors flex items-center gap-1 shadow-2xs ml-1"
-              title="ออกจากระบบแอดมิน (กลับเป็น Guest Mode)"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>ออก</span>
+              <span>เพิ่มสินค้าใหม่</span>
             </button>
           </div>
         </div>
