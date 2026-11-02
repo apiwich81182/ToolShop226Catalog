@@ -195,6 +195,25 @@ export async function deleteProduct(id: string): Promise<void> {
   }
 }
 
+export async function bulkDeleteProducts(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+
+  if (isSupabaseConfigured()) {
+    const { error } = await supabase.from('products').delete().in('id', ids);
+    if (error) throw new Error(error.message);
+  }
+
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (cached) {
+      const products: Product[] = JSON.parse(cached);
+      const idSet = new Set(ids);
+      const filtered = products.filter((p) => !idSet.has(p.id));
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
+    }
+  }
+}
+
 export async function uploadProductImage(file: File, sku: string): Promise<string> {
   const cleanSku = (sku || 'item').replace(/[^a-zA-Z0-9-_]/g, '_');
   const fileName = `${cleanSku}-${Date.now()}.webp`;

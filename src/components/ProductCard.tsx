@@ -50,10 +50,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     e.preventDefault();
     e.stopPropagation();
     const priceText = isInquirePrice ? 'ติดต่อสอบถามราคา' : `฿${formatNumber(product.final_price)}`;
+    const shareUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}${window.location.pathname}?sku=${encodeURIComponent(product.sku)}`
+      : '';
     const shareData = {
       title: `${product.brand} - ${product.name}`,
       text: `รหัส: ${product.sku} | ราคา: ${priceText}`,
-      url: typeof window !== 'undefined' ? window.location.href : '',
+      url: shareUrl,
     };
 
     if (navigator.share) {
@@ -65,7 +68,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     } else {
       try {
         await navigator.clipboard.writeText(
-          `${product.name} (รหัส: ${product.sku}) ราคา: ${priceText}`
+          `${product.name} (รหัส: ${product.sku}) ราคา: ${priceText}\nดูรายละเอียด: ${shareUrl}`
         );
         setCopiedShare(true);
         setTimeout(() => setCopiedShare(false), 2000);

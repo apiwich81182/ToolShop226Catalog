@@ -6,6 +6,7 @@ import { Product, ProductInput } from '@/types/product';
 import {
   saveProduct,
   deleteProduct,
+  bulkDeleteProducts,
   uploadProductImage,
   bulkUpsertProducts,
   batchUploadImagesBySku,
@@ -46,6 +47,8 @@ import {
   LogOut,
   Wrench,
   HelpCircle,
+  ImageOff,
+  CheckSquare,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -79,7 +82,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [localProducts, setLocalProducts] = useState<Product[]>(products);
   const [searchFilter, setSearchFilter] = useState('');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('All');
+  const [filterNoImage, setFilterNoImage] = useState<boolean>(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
+
+  // Count products without image
+  const missingImagesCount = useMemo(() => {
+    return localProducts.filter((p) => !p.image_url || p.image_url.trim() === '').length;
+  }, [localProducts]);
 
   // Toast notifications state
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -591,7 +601,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       list = list.filter((p) => p.brand.toLowerCase() === selectedBrandFilter.toLowerCase());
     }
 
-    // 2. Text Search filter
+    // 2. Missing Image filter
+    if (filterNoImage) {
+      list = list.filter((p) => !p.image_url || p.image_url.trim() === '');
+    }
+
+    // 3. Text Search filter
     if (searchFilter.trim()) {
       const term = searchFilter.toLowerCase().trim();
       list = list.filter(
@@ -603,7 +618,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
 
     return list;
-  }, [localProducts, searchFilter, selectedBrandFilter]);
+  }, [localProducts, searchFilter, selectedBrandFilter, filterNoImage]);
 
   const sortedProducts = useMemo(() => {
     const list = [...filteredProducts];
@@ -663,6 +678,46 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const startIndex = isAll ? 0 : (safePage - 1) * pageSize;
   const endIndex = isAll ? totalCount : Math.min(startIndex + pageSize, totalCount);
+
+  // Checkbox Selection Helpers
+  const currentPageIds = useMemo(() => paginatedProducts.map((p) => p.id), [paginatedProducts]);
+  const isAllCurrentPageSelected =
+    currentPageIds.length > 0 && currentPageIds.every((id) => selectedIds.includes(id));
+
+  const handleToggleSelectAllCurrentPage = () => {
+    if (isAllCurrentPageSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !currentPageIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...currentPageIds])));
+    }
+  };
+
+  const handleToggleSelectOne = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const confirmMessage = `คุณต้องการลบสินค้าที่เลือกทั้งหมด ${selectedIds.length} รายการใช่หรือไม่?\n(การลบนี้จะนำออกจากฐานข้อมูลและไม่สามารถย้อนคืนได้)`;
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      await bulkDeleteProducts(selectedIds);
+      setLocalProducts((prev) => prev.filter((p) => !selectedIds.includes(p.id)));
+      showToast('success', `ลบสินค้า ${selectedIds.length} รายการเรียบร้อยแล้ว`);
+      setSelectedIds([]);
+      onRefresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการลบสินค้าเป็นชุด';
+      showToast('error', msg);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 pb-16 selection:bg-amber-400 selection:text-zinc-950">
@@ -908,12 +963,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </select>
             </div>
 
-            {(searchFilter || selectedBrandFilter !== 'All') && (
+            {/* Filter Missing Image Toggle Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setFilterNoImage((prev) => !prev);
+                setCurrentPage(1);
+              }}
+              className={`text-xs font-semibold px-3 py-2 rounded-xl border transition-colors flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                filterNoImage
+                  ? 'bg-amber-400 text-zinc-950 border-amber-400 shadow-sm font-bold'
+                  : 'bg-zinc-950 text-zinc-300 border-zinc-800 hover:border-zinc-700 hover:text-white'
+              }`}
+              title="แสดงเฉพาะสินค้าที่ยังไม่มีรูปภาพประกอบ"
+            >
+              <ImageOff className="w-3.5 h-3.5" />
+              <span>ยังไม่มีรูป</span>
+              {missingImagesCount > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold leading-none ${
+                    filterNoImage
+                      ? 'bg-zinc-950 text-amber-400'
+                      : 'bg-amber-400/20 text-amber-400 border border-amber-400/30'
+                  }`}
+                >
+                  {missingImagesCount}
+                </span>
+              )}
+            </button>
+
+            {(searchFilter || selectedBrandFilter !== 'All' || filterNoImage) && (
               <button
                 type="button"
                 onClick={() => {
                   setSearchFilter('');
                   setSelectedBrandFilter('All');
+                  setFilterNoImage(false);
                   setCurrentPage(1);
                 }}
                 className="text-xs text-amber-400 hover:text-amber-300 font-bold underline"
@@ -930,12 +1015,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
 
+        {/* Bulk Actions Bar */}
+        {selectedIds.length > 0 && (
+          <div className="bg-amber-400/10 border border-amber-400/40 rounded-xl p-3 mb-4 flex items-center justify-between gap-3 animate-in fade-in duration-200 shadow-md">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-amber-300">
+              <CheckSquare className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>
+                เลือกอยู่ <strong className="text-white font-bold">{selectedIds.length}</strong> รายการ
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                className="text-xs font-medium px-3 py-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+              >
+                ยกเลิกการเลือก
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                className="text-xs font-bold px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>ลบที่เลือก ({selectedIds.length})</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Product Management Table (Theme: ดำเป็นหลัก เหลืองเป็นรอง) */}
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 shadow-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs sm:text-sm">
               <thead className="bg-zinc-950/90 text-zinc-400 border-b border-zinc-800 font-semibold uppercase tracking-wider text-[11px] select-none">
                 <tr>
+                  <th className="py-3 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isAllCurrentPageSelected}
+                      onChange={handleToggleSelectAllCurrentPage}
+                      aria-label="เลือกสินค้าทั้งหมดในหน้านี้"
+                      className="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-amber-400 focus:ring-amber-400 focus:ring-offset-0 cursor-pointer accent-amber-400"
+                    />
+                  </th>
                   <th className="py-3 px-4">รูปภาพ</th>
                   <th
                     className="py-3 px-4 cursor-pointer hover:bg-zinc-800/60 transition-colors whitespace-nowrap min-w-[130px]"
@@ -998,9 +1121,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {paginatedProducts.length > 0 ? (
                   paginatedProducts.map((p) => {
                     const discountPct = calculateDiscountPercent(p.base_price, p.discount);
+                    const isSelected = selectedIds.includes(p.id);
 
                     return (
-                      <tr key={p.id} className="hover:bg-zinc-850/80 transition-colors">
+                      <tr
+                        key={p.id}
+                        className={`transition-colors ${
+                          isSelected ? 'bg-amber-400/10 hover:bg-amber-400/15' : 'hover:bg-zinc-850/80'
+                        }`}
+                      >
+                        {/* Checkbox */}
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelectOne(p.id)}
+                            aria-label={`เลือก ${p.sku}`}
+                            className="w-4 h-4 rounded border-zinc-700 bg-zinc-950 text-amber-400 focus:ring-amber-400 focus:ring-offset-0 cursor-pointer accent-amber-400"
+                          />
+                        </td>
+
                         {/* Image Thumbnail */}
                         <td className="py-3 px-4">
                           <div className="w-12 h-12 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-center overflow-hidden shrink-0">
@@ -1100,7 +1240,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   })
                 ) : (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-zinc-500">
+                    <td colSpan={10} className="py-12 text-center text-zinc-500">
                       ไม่พบข้อมูลสินค้าที่ตรงกับคำค้นหา
                     </td>
                   </tr>

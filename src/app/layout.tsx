@@ -1,9 +1,21 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
+
+export const viewport: Viewport = {
+  themeColor: '#09090b',
+  width: 'device-width',
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
   title: 'TOOL SHOP 226 Plus | Hardware Tools Catalog',
   description: 'แคตาล็อกเครื่องมือช่าง ฮาร์ดแวร์ TOOL SHOP 226 Plus',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'TOOL SHOP 226 Plus',
+  },
   icons: {
     icon: '/logo.png',
     apple: '/logo.png',

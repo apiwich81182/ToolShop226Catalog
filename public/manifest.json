@@ -1,0 +1,24 @@
+{
+  "name": "TOOL SHOP 226 Plus",
+  "short_name": "TOOL SHOP 226",
+  "description": "แคตาล็อกเครื่องมือช่างและฮาร์ดแวร์ TOOL SHOP 226 Plus",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

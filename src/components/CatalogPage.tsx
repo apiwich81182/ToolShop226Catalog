@@ -159,9 +159,41 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     }
   };
 
+  // Check URL query parameter for direct product deep-link (?sku=... or ?p=...)
+  useEffect(() => {
+    if (typeof window === 'undefined' || initialProducts.length === 0) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const skuParam = params.get('sku') || params.get('p');
+    if (skuParam) {
+      const found = initialProducts.find(
+        (prod) => prod.sku.toLowerCase() === skuParam.trim().toLowerCase()
+      );
+      if (found) {
+        setSelectedProduct(found);
+        setIsDetailOpen(true);
+      }
+    }
+  }, [initialProducts]);
+
   const handleSelectProduct = (product: Product) => {
     setSelectedProduct(product);
     setIsDetailOpen(true);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('sku', product.sku);
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
+
+  const handleCloseDetail = () => {
+    setIsDetailOpen(false);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('sku');
+      url.searchParams.delete('p');
+      window.history.replaceState({}, '', url.toString());
+    }
   };
 
   // Bottom Nav Bar Tab Switcher
@@ -923,7 +955,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       <ProductDetailModal
         product={selectedProduct}
         isOpen={isDetailOpen}
-        onClose={() => setIsDetailOpen(false)}
+        onClose={handleCloseDetail}
         isFavorite={selectedProduct ? favorites.includes(selectedProduct.sku) : false}
         onToggleFavorite={handleToggleFavorite}
       />

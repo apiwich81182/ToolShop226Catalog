@@ -74,10 +74,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
   const handleShare = async () => {
     const priceText = isInquirePrice ? 'ติดต่อสอบถามราคา' : `฿${formatNumber(product.final_price)}`;
+    const shareUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}${window.location.pathname}?sku=${encodeURIComponent(product.sku)}`
+      : '';
     const shareData = {
       title: `${product.brand} - ${product.name}`,
       text: `รหัส: ${product.sku} | ราคา: ${priceText}`,
-      url: typeof window !== 'undefined' ? window.location.href : '',
+      url: shareUrl,
     };
 
     if (navigator.share) {
@@ -88,7 +91,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       }
     } else {
       try {
-        await navigator.clipboard.writeText(window.location.href);
+        await navigator.clipboard.writeText(shareUrl || window.location.href);
         setCopiedLink(true);
         setTimeout(() => setCopiedLink(false), 2000);
       } catch (err) {
