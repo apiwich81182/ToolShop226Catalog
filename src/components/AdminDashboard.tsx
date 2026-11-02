@@ -21,6 +21,7 @@ import {
 } from '@/lib/utils';
 import { SearchableCombobox } from './SearchableCombobox';
 import { BrandCategoryManagerModal } from './BrandCategoryManagerModal';
+import { AdminGuideModal } from './AdminGuideModal';
 import {
   Package,
   Plus,
@@ -44,6 +45,7 @@ import {
   SlidersHorizontal,
   LogOut,
   Wrench,
+  HelpCircle,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -85,6 +87,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Brands state (sorted A-Z)
   const [brands, setBrands] = useState<string[]>([]);
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
+  const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
 
   // Sorting state
   const [sortField, setSortField] = useState<AdminSortField>('created_at');
@@ -697,6 +700,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }}
       />
 
+      {/* Admin SOP / How-to Guide Modal */}
+      <AdminGuideModal
+        isOpen={isGuideModalOpen}
+        onClose={() => setIsGuideModalOpen(false)}
+      />
+
       {/* Header Bar (Black & Yellow Theme) */}
       <header className="bg-zinc-950/95 backdrop-blur-md border-b border-zinc-800 sticky top-0 z-30 shadow-xl">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -733,6 +742,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           {/* Action Toolbar */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Guide / SOP Button */}
+            <button
+              onClick={() => setIsGuideModalOpen(true)}
+              className="text-xs font-semibold px-3 py-2 bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 hover:text-amber-300 rounded-xl border border-amber-400/40 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              title="คู่มือและวิธีใช้งานแถบเครื่องมือหลังบ้าน (SOP)"
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+              <span>วิธีใช้งาน</span>
+            </button>
+
             {/* Manage Brands */}
             <button
               onClick={() => setIsBrandModalOpen(true)}
