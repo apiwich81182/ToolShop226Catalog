@@ -866,7 +866,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
               </div>
-              <div className="p-4 bg-zinc-900 border-t border-zinc-800/80 text-center space-y-2.5">
+              <div className="p-3.5 bg-zinc-900 border-t border-zinc-800/80 text-center">
                 <div className="inline-flex items-center justify-center w-full py-2.5 px-4 bg-[#06C755] hover:bg-[#05b34c] text-white font-bold text-xs sm:text-sm rounded-xl shadow-lg transition-transform active:scale-95 gap-2">
                   <svg
                     className="w-4 h-4 sm:w-5 sm:h-5 fill-current shrink-0"
@@ -877,9 +877,6 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                   </svg>
                   <span>แอด LINE สอบถาม / สั่งซื้อ</span>
                 </div>
-                <p className="text-[11px] text-zinc-400 leading-relaxed">
-                  คลิกที่แบนเนอร์หรือปุ่ม เพื่อแอดไลน์สอบถามสต็อก ขอใบเสนอราคา หรือสั่งซื้อได้ทันที
-                </p>
               </div>
             </a>
           </aside>
