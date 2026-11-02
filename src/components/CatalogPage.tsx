@@ -367,8 +367,47 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
               )}
             </div>
 
-            {/* Action Buttons: LINE Official & Admin */}
+            {/* Action Buttons: Favorites, LINE Official & Admin */}
             <div className="flex items-center gap-1.5 shrink-0">
+              {/* Favorites Button (Desktop & Tablet) */}
+              <button
+                type="button"
+                onClick={() => {
+                  const nextState = !onlyFavorites;
+                  setOnlyFavorites(nextState);
+                  setCurrentPage(1);
+                  setActiveNavTab(nextState ? 'favorites' : 'all');
+                }}
+                className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                  onlyFavorites
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-sm shadow-rose-950/50'
+                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border-zinc-800'
+                }`}
+                title={onlyFavorites ? 'แสดงสินค้าทั้งหมด' : 'ดูเฉพาะรายการโปรด'}
+              >
+                <Heart
+                  className={`w-4 h-4 transition-colors ${
+                    onlyFavorites
+                      ? 'fill-rose-500 text-rose-500'
+                      : favorites.length > 0
+                      ? 'fill-rose-500/60 text-rose-400'
+                      : 'text-zinc-400'
+                  }`}
+                />
+                <span className="hidden sm:inline">รายการโปรด</span>
+                {favorites.length > 0 && (
+                  <span
+                    className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-full leading-none ${
+                      onlyFavorites
+                        ? 'bg-rose-500 text-white'
+                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    }`}
+                  >
+                    {favorites.length}
+                  </span>
+                )}
+              </button>
+
               {/* LINE Button */}
               <a
                 href={generalLineUrl}
@@ -425,8 +464,10 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
 
           {/* Secondary Filter & Sort Toolbar */}
           <div className="mt-2.5 pt-2 border-t border-zinc-850 flex flex-wrap items-center justify-between gap-2 text-xs">
-            {/* Searchable Brand Dropdown (เรียง A-Z และพิมพ์ค้นหาใน Dropdown ได้) */}
-            <div className="relative" ref={brandDropdownRef}>
+            {/* Left: Brand Dropdown & Favorites Quick Filter */}
+            <div className="flex items-center gap-2">
+              {/* Searchable Brand Dropdown (เรียง A-Z และพิมพ์ค้นหาใน Dropdown ได้) */}
+              <div className="relative" ref={brandDropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsBrandDropdownOpen(!isBrandDropdownOpen)}
@@ -489,8 +530,48 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
               )}
             </div>
 
-            {/* Sorting Dropdown & View Mode Switcher */}
-            <div className="flex items-center gap-2 ml-auto">
+            {/* Quick Favorites Button on Desktop toolbar */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextState = !onlyFavorites;
+                setOnlyFavorites(nextState);
+                setCurrentPage(1);
+                setActiveNavTab(nextState ? 'favorites' : 'all');
+              }}
+              className={`hidden sm:inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg font-bold text-xs border transition-all cursor-pointer ${
+                onlyFavorites
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/60 shadow-xs'
+                  : 'bg-zinc-900 hover:bg-zinc-850 text-zinc-300 hover:text-white border-zinc-800'
+              }`}
+              title={onlyFavorites ? 'แสดงสินค้าทั้งหมด' : 'ดูเฉพาะรายการโปรด'}
+            >
+              <Heart
+                className={`w-3.5 h-3.5 transition-colors ${
+                  onlyFavorites
+                    ? 'fill-rose-500 text-rose-500'
+                    : favorites.length > 0
+                    ? 'fill-rose-500/60 text-rose-400'
+                    : 'text-zinc-400'
+                }`}
+              />
+              <span>รายการโปรด</span>
+              {favorites.length > 0 && (
+                <span
+                  className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-full leading-none ${
+                    onlyFavorites
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                  }`}
+                >
+                  {favorites.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Sorting Dropdown & View Mode Switcher */}
+          <div className="flex items-center gap-2 ml-auto">
               <div className="flex items-center gap-1.5">
                 <span className="text-zinc-500 font-semibold hidden xs:flex items-center gap-1">
                   <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
