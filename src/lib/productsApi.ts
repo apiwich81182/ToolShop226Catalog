@@ -2,6 +2,7 @@ import { Product, ProductInput } from '@/types/product';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { INITIAL_PRODUCTS, DEFAULT_BRANDS, DEFAULT_CATEGORIES } from './mockData';
 import { cleanAndFormatImageUrl } from './utils';
+import { compressAndResizeImage } from './imageOptimizer';
 
 const LOCAL_STORAGE_KEY = 'hardware_catalog_products';
 const BRANDS_STORAGE_KEY = 'hardware_catalog_brands';
@@ -235,11 +236,19 @@ export async function uploadProductImage(file: File, sku: string): Promise<strin
   const cleanSku = (sku || 'item').replace(/[^a-zA-Z0-9-_]/g, '_');
   const fileName = `${cleanSku}-${Date.now()}.webp`;
 
+  // Automatically compress, resize, and convert to WebP before uploading
+  const optimizedFile = await compressAndResizeImage(file, {
+    maxWidth: 1200,
+    maxHeight: 1200,
+    quality: 0.82,
+  });
+
   if (isSupabaseConfigured()) {
     const { error: uploadError } = await supabase.storage
       .from('product-images')
-      .upload(fileName, file, {
-        cacheControl: '3600',
+      .upload(fileName, optimizedFile, {
+        contentType: optimizedFile.type || 'image/webp',
+        cacheControl: '31536000, immutable',
         upsert: true,
       });
 
@@ -258,7 +267,7 @@ export async function uploadProductImage(file: File, sku: string): Promise<strin
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(optimizedFile);
   });
 }
 
