@@ -1076,7 +1076,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
 
           {/* Pagination Controls */}
-          {totalPages > 1 && (
+          {totalCount > 0 && (
             <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-zinc-800 gap-3 text-xs text-zinc-400">
               <div>
                 แสดง {startIndex + 1} - {endIndex} จากทั้งหมด {totalCount} รายการ

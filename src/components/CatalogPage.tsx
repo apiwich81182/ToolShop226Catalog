@@ -67,6 +67,13 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(15);
 
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   // Close brand dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -755,7 +762,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                 )}
 
                 {/* Pagination Controls */}
-                {!isAllItems && totalPages > 1 && (
+                {!isAllItems && totalItems > 0 && (
                   <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-zinc-900 p-4 rounded-xl border border-zinc-800 shadow-md">
                     <span className="text-xs text-zinc-400">
                       หน้า {safeCurrentPage} จาก {totalPages} (รวม {totalItems} รายการ)
@@ -764,9 +771,9 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        onClick={() => handlePageChange(Math.max(1, safeCurrentPage - 1))}
                         disabled={safeCurrentPage === 1}
-                        className="p-2 border border-zinc-800 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-zinc-900 transition-colors"
+                        className="p-2 border border-zinc-800 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-zinc-900 transition-colors cursor-pointer disabled:cursor-not-allowed"
                         title="หน้าก่อนหน้า"
                       >
                         <ChevronLeft className="w-4 h-4" />
@@ -784,10 +791,10 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                             <button
                               key={page}
                               type="button"
-                              onClick={() => setCurrentPage(page)}
-                              className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                              onClick={() => handlePageChange(page)}
+                              className={`w-8 h-8 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                 isCurrent
-                                  ? 'bg-amber-400 text-zinc-950 shadow-md'
+                                  ? 'bg-amber-400 text-zinc-950 shadow-md scale-105'
                                   : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-700'
                               }`}
                             >
@@ -799,7 +806,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                           page === safeCurrentPage + 2
                         ) {
                           return (
-                            <span key={page} className="px-1 text-zinc-600 text-xs">
+                            <span key={page} className="px-1 text-zinc-600 text-xs select-none">
                               ...
                             </span>
                           );
@@ -809,9 +816,9 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        onClick={() => handlePageChange(Math.min(totalPages, safeCurrentPage + 1))}
                         disabled={safeCurrentPage === totalPages}
-                        className="p-2 border border-zinc-800 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-zinc-900 transition-colors"
+                        className="p-2 border border-zinc-800 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-zinc-900 transition-colors cursor-pointer disabled:cursor-not-allowed"
                         title="หน้าถัดไป"
                       >
                         <ChevronRight className="w-4 h-4" />
