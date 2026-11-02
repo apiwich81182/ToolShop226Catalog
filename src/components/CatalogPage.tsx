@@ -52,6 +52,8 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
 
   // Admin Login Modal State (Guest mode vs Admin mode)
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState<boolean>(false);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(false);
+  const logoClicksRef = useRef<{ count: number; timer: NodeJS.Timeout | null }>({ count: 0, timer: null });
 
   // Searchable Brand Dropdown State
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState<boolean>(false);
@@ -80,14 +82,37 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     };
   }, [isBrandDropdownOpen]);
 
-  const handleAdminClick = () => {
+  const handleAdminClick = useCallback(() => {
     const isAuth = typeof window !== 'undefined' && sessionStorage.getItem('admin_auth') === 'true';
     if (isAuth) {
+      setIsAdminLoggedIn(true);
       onOpenAdmin?.();
     } else {
       setIsAdminLoginOpen(true);
     }
-  };
+  }, [onOpenAdmin]);
+
+  // Check admin session and secret URL query parameter (?admin=1 or ?admin=true)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isAuth = sessionStorage.getItem('admin_auth') === 'true';
+    setIsAdminLoggedIn(isAuth);
+
+    const params = new URLSearchParams(window.location.search);
+    const adminParam = params.get('admin');
+    if (adminParam === '1' || adminParam === 'true') {
+      // Remove secret query parameter cleanly from address bar
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, '', cleanUrl || '/');
+
+      if (isAuth) {
+        onOpenAdmin?.();
+      } else {
+        setIsAdminLoginOpen(true);
+      }
+    }
+  }, [onOpenAdmin]);
 
   // Load preferences from localStorage on mount
   useEffect(() => {
@@ -289,14 +314,34 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     return sortedProducts.slice(startIndex, startIndex + itemsPerPage);
   }, [sortedProducts, isAllItems, safeCurrentPage, itemsPerPage]);
 
-  const clearAllFilters = () => {
+  const clearAllFilters = useCallback(() => {
     setSearchQuery('');
     setSelectedBrand('All');
     setOnlyFavorites(false);
     setSortBy('created_at-desc');
     setActiveNavTab('all');
     setCurrentPage(1);
-  };
+  }, []);
+
+  // Secret trigger: Clicking or tapping logo 3 times within 1.5 seconds opens admin login
+  const handleLogoClick = useCallback(() => {
+    clearAllFilters();
+
+    logoClicksRef.current.count += 1;
+    if (logoClicksRef.current.timer) {
+      clearTimeout(logoClicksRef.current.timer);
+    }
+
+    if (logoClicksRef.current.count >= 3) {
+      logoClicksRef.current.count = 0;
+      handleAdminClick();
+      return;
+    }
+
+    logoClicksRef.current.timer = setTimeout(() => {
+      logoClicksRef.current.count = 0;
+    }, 1500);
+  }, [clearAllFilters, handleAdminClick]);
 
   const startIndex = isAllItems ? 0 : (safeCurrentPage - 1) * itemsPerPage;
   const endIndex = isAllItems ? totalItems : Math.min(startIndex + itemsPerPage, totalItems);
@@ -318,7 +363,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
           <div className="flex items-center gap-2.5 sm:gap-4">
             {/* Logo (TOOL SHOP 226 Plus) */}
             <div
-              onClick={clearAllFilters}
+              onClick={handleLogoClick}
               className="flex items-center gap-2.5 sm:gap-3 cursor-pointer shrink-0 select-none group"
               title="คลิกเพื่อกลับหน้าแรก / ล้างตัวกรอง"
             >
@@ -422,16 +467,17 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                 <span className="hidden md:inline">LINE</span>
               </a>
 
-              {/* Admin Button (Protected by Admin Password) */}
-              {onOpenAdmin && (
+              {/* Admin Button (Only visible when admin is authenticated) */}
+              {onOpenAdmin && isAdminLoggedIn && (
                 <button
                   type="button"
                   onClick={handleAdminClick}
-                  className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-amber-400 p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-semibold border border-zinc-800 transition-colors flex items-center gap-1.5"
-                  title="เข้าสู่ระบบผู้ดูแลระบบ (Admin)"
+                  className="bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 border border-amber-400/40 p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                  title="โหมดผู้ดูแลระบบ: คลิกเพื่อจัดการหลังบ้าน"
                 >
                   <SlidersHorizontal className="w-4 h-4 text-amber-400" />
-                  <span className="hidden lg:inline">หลังบ้าน</span>
+                  <span className="hidden lg:inline">จัดการหลังบ้าน</span>
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse ml-0.5" />
                 </button>
               )}
             </div>
@@ -891,6 +937,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
         onClose={() => setIsAdminLoginOpen(false)}
         onSuccess={() => {
           setIsAdminLoginOpen(false);
+          setIsAdminLoggedIn(true);
           onOpenAdmin?.();
         }}
       />
