@@ -457,13 +457,33 @@ export async function uploadProductImage(file: File, sku: string): Promise<strin
   const cleanSku = (sku || 'item').replace(/[^a-zA-Z0-9-_]/g, '_');
   const fileName = `${cleanSku}-${Date.now()}.webp`;
 
-  // Automatically compress, resize, and convert to WebP before uploading
+  // Automatically compress, resize, and convert to WebP before uploading (~70KB)
   const optimizedFile = await compressAndResizeImage(file, {
     maxWidth: 1200,
     maxHeight: 1200,
     quality: 0.82,
   });
 
+  // 1. Try uploading to Cloudflare R2 first (via /api/upload-image)
+  try {
+    const formData = new FormData();
+    formData.append('file', optimizedFile);
+    formData.append('fileName', fileName);
+
+    const r2Res = await fetch('/api/upload-image', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (r2Res.ok) {
+      const data = await r2Res.json();
+      if (data.url) return data.url;
+    }
+  } catch (r2Err) {
+    console.warn('Cloudflare R2 upload skipped or failed, trying Supabase fallback:', r2Err);
+  }
+
+  // 2. Fallback to Supabase Storage if R2 is not configured
   if (isSupabaseConfigured()) {
     const { error: uploadError } = await supabase.storage
       .from('product-images')
@@ -484,7 +504,7 @@ export async function uploadProductImage(file: File, sku: string): Promise<strin
     return publicUrlData.publicUrl;
   }
 
-  // Fallback for preview / dev if Supabase is not connected
+  // 3. Fallback for preview / dev if neither is connected
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
