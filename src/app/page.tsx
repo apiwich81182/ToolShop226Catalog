@@ -19,8 +19,8 @@ export default function Home() {
         fetchProducts(),
         fetchBrands(),
       ]);
-      setProducts(productsData);
-      setBrands(brandsData);
+      setProducts(productsData || []);
+      setBrands(brandsData || []);
     } catch (err) {
       console.error('Failed to load catalog data:', err);
     } finally {

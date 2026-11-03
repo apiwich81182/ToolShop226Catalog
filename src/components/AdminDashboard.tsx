@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useTransition, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useTransition, useEffect, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { Product, ProductInput } from '@/types/product';
 import {
@@ -12,6 +12,8 @@ import {
   batchUploadImagesBySku,
   fetchBrands,
   saveBrands,
+  queryProducts,
+  fetchMissingImagesCount,
 } from '@/lib/productsApi';
 import {
   formatNumber,
@@ -79,17 +81,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onBackToCatalog,
   onProductsUpdate,
 }) => {
-  const [localProducts, setLocalProducts] = useState<Product[]>(products);
+  const [localProducts, setLocalProducts] = useState<Product[]>(products || []);
+  const [tableProducts, setTableProducts] = useState<Product[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [isLoadingTable, setIsLoadingTable] = useState<boolean>(false);
+  const [missingImagesCount, setMissingImagesCount] = useState<number>(0);
+
   const [searchFilter, setSearchFilter] = useState('');
+  const [debouncedSearchFilter, setDebouncedSearchFilter] = useState('');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('All');
   const [filterNoImage, setFilterNoImage] = useState<boolean>(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
 
-  // Count products without image
-  const missingImagesCount = useMemo(() => {
-    return localProducts.filter((p) => !p.image_url || p.image_url.trim() === '').length;
-  }, [localProducts]);
+  const [importProgressText, setImportProgressText] = useState<string>('');
 
   // Toast notifications state
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -147,9 +153,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   }, []);
 
+  // Debounce search filter input (250ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchFilter(searchFilter);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchFilter]);
+
+  // Load missing images count from server/db
+  const refreshMissingImagesCount = useCallback(() => {
+    fetchMissingImagesCount().then(setMissingImagesCount).catch(console.warn);
+  }, []);
+
+  useEffect(() => {
+    refreshMissingImagesCount();
+  }, [refreshMissingImagesCount]);
+
+  // Load table data with Server-side query
+  const loadTableData = useCallback(() => {
+    setIsLoadingTable(true);
+    queryProducts({
+      search: debouncedSearchFilter,
+      brand: selectedBrandFilter,
+      onlyWithoutImage: filterNoImage,
+      sortField,
+      sortOrder,
+      page: currentPage,
+      pageSize,
+    })
+      .then((res) => {
+        setTableProducts(res.products);
+        setTotalCount(res.totalCount);
+        setTotalPages(res.totalPages);
+        setIsLoadingTable(false);
+      })
+      .catch((err) => {
+        console.error('Admin table query error:', err);
+        setIsLoadingTable(false);
+      });
+  }, [debouncedSearchFilter, selectedBrandFilter, filterNoImage, sortField, sortOrder, currentPage, pageSize]);
+
+  useEffect(() => {
+    loadTableData();
+  }, [loadTableData]);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchFilter, selectedBrandFilter, filterNoImage, pageSize]);
+
   // Sync props change with local state
   useEffect(() => {
-    setLocalProducts(products);
+    setLocalProducts(products || []);
   }, [products]);
 
   const showToast = (type: 'success' | 'error' | 'info', text: string) => {
@@ -340,6 +396,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         await saveProduct(input);
         showToast('success', editingProduct ? 'แก้ไขสินค้าสำเร็จ' : 'เพิ่มสินค้าใหม่สำเร็จ');
         setIsModalOpen(false);
+        loadTableData();
+        refreshMissingImagesCount();
         onRefresh();
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'บันทึกสินค้าไม่สำเร็จ';
@@ -355,6 +413,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       await deleteProduct(product.id);
       showToast('success', `ลบสินค้า [${product.sku}] เรียบร้อย`);
+      loadTableData();
+      refreshMissingImagesCount();
       onRefresh();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'ลบสินค้าไม่สำเร็จ';
@@ -514,8 +574,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           throw new Error('ไม่พบแถวข้อมูลสินค้าที่มีคอลัมน์ sku และ name ที่ถูกต้อง');
         }
 
-        const count = await bulkUpsertProducts(validProducts);
-        showToast('success', `นำเข้าข้อมูลสินค้าสำเร็จ ${count} รายการ`);
+        setIsImporting(true);
+        setImportProgressText(`กำลังเตรียมนำเข้า ${validProducts.length.toLocaleString()} รายการ...`);
+
+        const count = await bulkUpsertProducts(validProducts, (processed, total) => {
+          setImportProgressText(
+            `กำลังนำเข้า ${processed.toLocaleString()} / ${total.toLocaleString()} รายการ (${Math.round(
+              (processed / total) * 100
+            )}%)...`
+          );
+        });
+
+        showToast('success', `นำเข้าข้อมูลสินค้าสำเร็จ ${count.toLocaleString()} รายการ`);
+        loadTableData();
+        refreshMissingImagesCount();
         onRefresh();
 
         // Also update brands
@@ -564,6 +636,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           'success',
           `อัปโหลดและจับคู่รูปภาพสำเร็จ ${result.matchedSkus.length} สินค้า (อัปโหลดไป ${result.successCount} ไฟล์)`
         );
+        loadTableData();
+        refreshMissingImagesCount();
         onRefresh();
       } else {
         showToast(
@@ -591,91 +665,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setSortField(field);
       setSortOrder('asc');
     }
+    setCurrentPage(1);
   };
 
-  const filteredProducts = useMemo(() => {
-    let list = localProducts;
-
-    // 1. Brand Dropdown filter
-    if (selectedBrandFilter !== 'All') {
-      list = list.filter((p) => p.brand.toLowerCase() === selectedBrandFilter.toLowerCase());
-    }
-
-    // 2. Missing Image filter
-    if (filterNoImage) {
-      list = list.filter((p) => !p.image_url || p.image_url.trim() === '');
-    }
-
-    // 3. Text Search filter
-    if (searchFilter.trim()) {
-      const term = searchFilter.toLowerCase().trim();
-      list = list.filter(
-        (p) =>
-          p.sku.toLowerCase().includes(term) ||
-          p.name.toLowerCase().includes(term) ||
-          p.brand.toLowerCase().includes(term)
-      );
-    }
-
-    return list;
-  }, [localProducts, searchFilter, selectedBrandFilter, filterNoImage]);
-
-  const sortedProducts = useMemo(() => {
-    const list = [...filteredProducts];
-    return list.sort((a, b) => {
-      let comparison = 0;
-      switch (sortField) {
-        case 'sku':
-          comparison = a.sku.localeCompare(b.sku);
-          break;
-        case 'name':
-          comparison = a.name.localeCompare(b.name, 'th');
-          break;
-        case 'brand':
-          comparison = a.brand.localeCompare(b.brand, 'en');
-          break;
-        case 'base_price': {
-          const inqA = isPriceInquiry(a);
-          const inqB = isPriceInquiry(b);
-          if (inqA && !inqB) comparison = -1;
-          else if (!inqA && inqB) comparison = 1;
-          else comparison = a.base_price - b.base_price;
-          break;
-        }
-        case 'discount':
-          comparison = a.discount - b.discount;
-          break;
-        case 'final_price': {
-          const inqA = isPriceInquiry(a);
-          const inqB = isPriceInquiry(b);
-          if (inqA && !inqB) comparison = -1;
-          else if (!inqA && inqB) comparison = 1;
-          else comparison = a.final_price - b.final_price;
-          break;
-        }
-        case 'created_at':
-        default:
-          comparison =
-            (a.created_at ? new Date(a.created_at).getTime() : 0) -
-            (b.created_at ? new Date(b.created_at).getTime() : 0);
-          break;
-      }
-      return sortOrder === 'asc' ? comparison : -comparison;
-    });
-  }, [filteredProducts, sortField, sortOrder]);
-
-  // Pagination Slice
-  const totalCount = sortedProducts.length;
   const isAll = pageSize === -1;
-  const totalPages = isAll ? 1 : Math.max(1, Math.ceil(totalCount / pageSize));
   const safePage = Math.min(currentPage, totalPages);
-
-  const paginatedProducts = useMemo(() => {
-    if (isAll) return sortedProducts;
-    const start = (safePage - 1) * pageSize;
-    return sortedProducts.slice(start, start + pageSize);
-  }, [sortedProducts, isAll, safePage, pageSize]);
-
+  const paginatedProducts = tableProducts;
   const startIndex = isAll ? 0 : (safePage - 1) * pageSize;
   const endIndex = isAll ? totalCount : Math.min(startIndex + pageSize, totalCount);
 
@@ -709,9 +704,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     try {
       await bulkDeleteProducts(selectedIds);
-      setLocalProducts((prev) => prev.filter((p) => !selectedIds.includes(p.id)));
       showToast('success', `ลบสินค้า ${selectedIds.length} รายการเรียบร้อยแล้ว`);
       setSelectedIds([]);
+      loadTableData();
+      refreshMissingImagesCount();
       onRefresh();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการลบสินค้าเป็นชุด';
@@ -865,7 +861,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   title="นำเข้าไฟล์ Excel หรือ CSV"
                 >
                   {isImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                  <span>{isImporting ? 'กำลังนำเข้า...' : 'Import Excel'}</span>
+                  <span>{isImporting ? (importProgressText || 'กำลังนำเข้า...') : 'Import Excel'}</span>
                 </button>
               </div>
 
@@ -1009,9 +1005,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-4 text-xs text-zinc-400 w-full md:w-auto justify-end">
-            <span>
-              พบสินค้า: <strong className="text-amber-400 font-bold">{totalCount}</strong> รายการ
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span>
+                พบสินค้า: <strong className="text-amber-400 font-bold">{totalCount}</strong> รายการ
+              </span>
+              {isLoadingTable && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />}
+            </div>
           </div>
         </div>
 

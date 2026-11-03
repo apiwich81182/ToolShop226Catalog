@@ -1,4 +1,4 @@
-import { Product, ProductInput } from '@/types/product';
+import { Product, ProductInput, ProductQueryParams, ProductQueryResult } from '@/types/product';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { INITIAL_PRODUCTS, DEFAULT_BRANDS, DEFAULT_CATEGORIES } from './mockData';
 import { cleanAndFormatImageUrl } from './utils';
@@ -13,6 +13,22 @@ const CATEGORIES_STORAGE_KEY = 'hardware_catalog_categories';
 // ============================================================================
 
 export async function fetchBrands(): Promise<string[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from('brands')
+        .select('name')
+        .order('name', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        const unique = Array.from(new Set(data.map((b: { name: string }) => b.name?.trim()).filter(Boolean)));
+        if (unique.length > 0) return unique;
+      }
+    } catch (e) {
+      console.warn('Failed to fetch from brands table, falling back:', e);
+    }
+  }
+
   if (typeof window !== 'undefined') {
     const cached = localStorage.getItem(BRANDS_STORAGE_KEY);
     if (cached) {
@@ -30,6 +46,16 @@ export async function fetchBrands(): Promise<string[]> {
 
 export async function saveBrands(brands: string[]): Promise<string[]> {
   const unique = Array.from(new Set(brands.map((b) => b.trim()).filter(Boolean)));
+
+  if (isSupabaseConfigured()) {
+    try {
+      const payload = unique.map((name) => ({ name }));
+      await supabase.from('brands').upsert(payload, { onConflict: 'name' });
+    } catch (e) {
+      console.warn('Failed to save brands to Supabase:', e);
+    }
+  }
+
   if (typeof window !== 'undefined') {
     localStorage.setItem(BRANDS_STORAGE_KEY, JSON.stringify(unique));
   }
@@ -70,7 +96,8 @@ export async function fetchProducts(): Promise<Product[]> {
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(300);
 
       if (error) {
         console.warn('Supabase fetch error, fallback to local:', error.message);
@@ -98,6 +125,200 @@ export async function fetchProducts(): Promise<Product[]> {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(INITIAL_PRODUCTS));
   }
   return INITIAL_PRODUCTS;
+}
+
+/**
+ * Server-side High-Performance Query
+ * Designed for 500,000+ items with server-side filtering, sorting, and pagination.
+ */
+export async function queryProducts(params: ProductQueryParams = {}): Promise<ProductQueryResult> {
+  const page = Math.max(1, params.page || 1);
+  const pageSize = params.pageSize === -1 ? 500 : Math.max(1, params.pageSize || 24);
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  if (isSupabaseConfigured()) {
+    try {
+      let query = supabase.from('products').select('*', { count: 'exact' });
+
+      // 1. Direct SKU exact match (deep link lookup)
+      if (params.skuExact) {
+        query = query.ilike('sku', params.skuExact.trim());
+      }
+
+      // 2. Filter by list of SKUs (e.g. favorites)
+      if (params.skus && params.skus.length > 0) {
+        query = query.in('sku', params.skus);
+      }
+
+      // 3. Brand filter
+      if (params.brand && params.brand !== 'All') {
+        query = query.ilike('brand', params.brand.trim());
+      }
+
+      // 4. Category filter
+      if (params.category && params.category !== 'All') {
+        query = query.ilike('category', params.category.trim());
+      }
+
+      // 5. Missing image filter
+      if (params.onlyWithoutImage) {
+        query = query.or('image_url.is.null,image_url.eq.');
+      }
+
+      // 6. Search keyword across SKU, Name, and Brand
+      if (params.search && params.search.trim()) {
+        const term = params.search.trim();
+        query = query.or(`sku.ilike.%${term}%,name.ilike.%${term}%,brand.ilike.%${term}%`);
+      }
+
+      // 7. Dynamic Sorting
+      const sortField = params.sortField || 'created_at';
+      const sortOrder = params.sortOrder || 'desc';
+      const ascending = sortOrder === 'asc';
+
+      if (sortField === 'final_price' || sortField === 'base_price' || sortField === 'discount') {
+        query = query.order(sortField, { ascending, nullsFirst: false });
+      } else if (sortField === 'name') {
+        query = query.order('name', { ascending });
+      } else if (sortField === 'brand') {
+        query = query.order('brand', { ascending }).order('name', { ascending: true });
+      } else if (sortField === 'sku') {
+        query = query.order('sku', { ascending });
+      } else {
+        query = query.order('created_at', { ascending });
+      }
+
+      // 8. Server-side range pagination (Limit / Offset)
+      query = query.range(from, to);
+
+      const { data, count, error } = await query;
+
+      if (!error && data) {
+        const total = count ?? data.length;
+        return {
+          products: data as Product[],
+          totalCount: total,
+          page,
+          pageSize,
+          totalPages: Math.max(1, Math.ceil(total / pageSize)),
+        };
+      }
+      console.warn('Supabase query error, falling back to local search:', error?.message);
+    } catch (err) {
+      console.warn('Supabase query exception, falling back to local search:', err);
+    }
+  }
+
+  // Local storage / Mock data fallback
+  const allProducts = await fetchProducts();
+  let list = [...allProducts];
+
+  if (params.skuExact) {
+    list = list.filter((p) => p.sku.toLowerCase() === params.skuExact?.trim().toLowerCase());
+  }
+  if (params.skus && params.skus.length > 0) {
+    const skuSet = new Set(params.skus.map((s) => s.toLowerCase()));
+    list = list.filter((p) => skuSet.has(p.sku.toLowerCase()));
+  }
+  if (params.brand && params.brand !== 'All') {
+    list = list.filter((p) => p.brand.toLowerCase() === params.brand?.toLowerCase());
+  }
+  if (params.category && params.category !== 'All') {
+    list = list.filter((p) => p.category.toLowerCase() === params.category?.toLowerCase());
+  }
+  if (params.onlyWithoutImage) {
+    list = list.filter((p) => !p.image_url || p.image_url.trim() === '');
+  }
+  if (params.search && params.search.trim()) {
+    const term = params.search.toLowerCase().trim();
+    list = list.filter(
+      (p) =>
+        p.sku.toLowerCase().includes(term) ||
+        p.name.toLowerCase().includes(term) ||
+        p.brand.toLowerCase().includes(term)
+    );
+  }
+
+  const sortField = params.sortField || 'created_at';
+  const sortOrder = params.sortOrder || 'desc';
+  list.sort((a, b) => {
+    let comparison = 0;
+    if (sortField === 'name') comparison = a.name.localeCompare(b.name, 'th');
+    else if (sortField === 'brand') comparison = a.brand.localeCompare(b.brand, 'en');
+    else if (sortField === 'sku') comparison = a.sku.localeCompare(b.sku);
+    else if (sortField === 'base_price') comparison = a.base_price - b.base_price;
+    else if (sortField === 'final_price') comparison = a.final_price - b.final_price;
+    else if (sortField === 'discount') comparison = a.discount - b.discount;
+    else {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      comparison = timeA - timeB;
+    }
+    return sortOrder === 'asc' ? comparison : -comparison;
+  });
+
+  const total = list.length;
+  const paged = list.slice(from, to + 1);
+
+  return {
+    products: paged,
+    totalCount: total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
+/**
+ * Fetch a single product directly by SKU in ~1ms (ideal for deep linking ?sku=...)
+ */
+export async function fetchProductBySku(sku: string): Promise<Product | null> {
+  const clean = sku.trim();
+  if (!clean) return null;
+
+  if (isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .ilike('sku', clean)
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as Product;
+      }
+    } catch (e) {
+      console.warn('Failed to fetch product by SKU:', e);
+    }
+  }
+
+  const all = await fetchProducts();
+  return all.find((p) => p.sku.toLowerCase() === clean.toLowerCase()) || null;
+}
+
+/**
+ * Fast count of products missing an image
+ */
+export async function fetchMissingImagesCount(): Promise<number> {
+  if (isSupabaseConfigured()) {
+    try {
+      const { count, error } = await supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .or('image_url.is.null,image_url.eq.');
+
+      if (!error && typeof count === 'number') {
+        return count;
+      }
+    } catch (e) {
+      console.warn('Failed to fetch missing images count:', e);
+    }
+  }
+
+  const all = await fetchProducts();
+  return all.filter((p) => !p.image_url || p.image_url.trim() === '').length;
 }
 
 function generateUUID(): string {
@@ -271,51 +492,80 @@ export async function uploadProductImage(file: File, sku: string): Promise<strin
   });
 }
 
-export async function bulkUpsertProducts(products: ProductInput[]): Promise<number> {
+export async function bulkUpsertProducts(
+  products: ProductInput[],
+  onProgress?: (processed: number, total: number) => void
+): Promise<number> {
   if (products.length === 0) return 0;
 
   if (isSupabaseConfigured()) {
-    // Look up existing products by SKU to preserve existing IDs
-    const skus = products.map((p) => p.sku.trim());
-    const skuToIdMap = new Map<string, string>();
+    const CHUNK_SIZE = 250;
+    let processedCount = 0;
 
-    try {
-      const { data: existingRows } = await supabase
+    for (let i = 0; i < products.length; i += CHUNK_SIZE) {
+      const chunk = products.slice(i, i + CHUNK_SIZE);
+      const skus = chunk.map((p) => p.sku.trim());
+      const skuToIdMap = new Map<string, string>();
+
+      try {
+        const { data: existingRows } = await supabase
+          .from('products')
+          .select('id, sku')
+          .in('sku', skus);
+
+        if (existingRows) {
+          existingRows.forEach((r: { id: string; sku: string }) => {
+            if (r.sku) skuToIdMap.set(r.sku.toLowerCase(), r.id);
+          });
+        }
+      } catch (e) {
+        console.warn('Could not query existing IDs during bulk upsert:', e);
+      }
+
+      const payload = chunk.map((p) => {
+        const existingId = skuToIdMap.get(p.sku.trim().toLowerCase());
+        return {
+          id: existingId || generateUUID(),
+          sku: p.sku.trim(),
+          name: p.name.trim(),
+          brand: p.brand.trim(),
+          category: p.category || 'ทั่วไป',
+          detail: p.detail || null,
+          base_price: Number(p.base_price) || 0,
+          discount: Number(p.discount) || 0,
+          image_url: cleanAndFormatImageUrl(p.image_url),
+        };
+      });
+
+      const { error } = await supabase
         .from('products')
-        .select('id, sku')
-        .in('sku', skus);
+        .upsert(payload, { onConflict: 'sku' });
 
-      if (existingRows) {
-        existingRows.forEach((r: { id: string; sku: string }) => {
-          if (r.sku) skuToIdMap.set(r.sku.toLowerCase(), r.id);
-        });
+      if (error) {
+        throw new Error(
+          `Bulk upsert failed on batch ${Math.floor(i / CHUNK_SIZE) + 1}: ${error.message}`
+        );
+      }
+
+      processedCount += chunk.length;
+      if (onProgress) {
+        onProgress(Math.min(processedCount, products.length), products.length);
+      }
+    }
+
+    // Auto-sync unique brands to the brands table
+    try {
+      const uniqueBrands = Array.from(
+        new Set(products.map((p) => p.brand.trim()).filter(Boolean))
+      );
+      if (uniqueBrands.length > 0) {
+        const brandPayload = uniqueBrands.map((b) => ({ name: b }));
+        await supabase.from('brands').upsert(brandPayload, { onConflict: 'name' });
       }
     } catch (e) {
-      console.warn('Could not query existing IDs during bulk upsert:', e);
+      console.warn('Could not auto-sync brands to brands table:', e);
     }
 
-    const payload = products.map((p) => {
-      const existingId = skuToIdMap.get(p.sku.trim().toLowerCase());
-      return {
-        id: existingId || generateUUID(),
-        sku: p.sku.trim(),
-        name: p.name.trim(),
-        brand: p.brand.trim(),
-        category: p.category || 'ทั่วไป',
-        detail: p.detail || null,
-        base_price: Number(p.base_price) || 0,
-        discount: Number(p.discount) || 0,
-        image_url: cleanAndFormatImageUrl(p.image_url),
-      };
-    });
-
-    const { error } = await supabase
-      .from('products')
-      .upsert(payload, { onConflict: 'sku' });
-
-    if (error) {
-      throw new Error(`Bulk upsert failed: ${error.message}`);
-    }
     return products.length;
   }
 

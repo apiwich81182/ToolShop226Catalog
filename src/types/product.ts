@@ -19,6 +19,7 @@ export type ProductInput = Omit<Product, 'id' | 'final_price' | 'created_at' | '
 
 export type SortField =
   | 'created_at'
+  | 'name'
   | 'brand'
   | 'category'
   | 'sku'
@@ -34,4 +35,26 @@ export interface SortOption {
   label: string;
   field: SortField;
   order: SortOrder;
+}
+
+export interface ProductQueryParams {
+  search?: string;
+  brand?: string;
+  category?: string;
+  page?: number;
+  pageSize?: number;
+  sortField?: SortField;
+  sortOrder?: SortOrder;
+  onlyWithoutImage?: boolean;
+  skuExact?: string;
+  skus?: string[];
+}
+
+export interface ProductQueryResult {
+  products: Product[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  missingImagesCount?: number;
 }

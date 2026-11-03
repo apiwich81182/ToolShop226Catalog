@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import Fuse from 'fuse.js';
-import { Product } from '@/types/product';
+import { Product, SortField, SortOrder } from '@/types/product';
 import { ProductCard } from './ProductCard';
 import { ProductDetailModal } from './ProductDetailModal';
 import { AdminLoginModal } from './AdminLoginModal';
+import { queryProducts, fetchProductBySku } from '@/lib/productsApi';
 import { calculateDiscountPercent, isPriceInquiry } from '@/lib/utils';
 import {
   Search,
@@ -22,23 +22,31 @@ import {
   Wrench,
   ChevronDown,
   Check,
+  Loader2,
 } from 'lucide-react';
 
 interface CatalogPageProps {
-  initialProducts: Product[];
+  initialProducts?: Product[];
   onOpenAdmin?: () => void;
   availableBrands?: string[];
 }
 
 export const CatalogPage: React.FC<CatalogPageProps> = ({
-  initialProducts,
+  initialProducts = [],
   onOpenAdmin,
   availableBrands,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState<string>('All');
   const [onlyFavorites, setOnlyFavorites] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<string>('created_at-desc');
+
+  // Server-side paginated products state
+  const [products, setProducts] = useState<Product[]>(() => initialProducts.slice(0, 15));
+  const [totalItems, setTotalItems] = useState<number>(() => initialProducts.length);
+  const [totalPages, setTotalPages] = useState<number>(() => Math.max(1, Math.ceil(initialProducts.length / 15)));
+  const [isLoadingProducts, setIsLoadingProducts] = useState<boolean>(false);
 
   // Active Bottom Nav Tab (Mobile)
   const [activeNavTab, setActiveNavTab] = useState<'all' | 'favorites'>('all');
@@ -159,22 +167,29 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     }
   };
 
+  // Debounce search query to avoid firing queries on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Check URL query parameter for direct product deep-link (?sku=... or ?p=...)
   useEffect(() => {
-    if (typeof window === 'undefined' || initialProducts.length === 0) return;
+    if (typeof window === 'undefined') return;
 
     const params = new URLSearchParams(window.location.search);
     const skuParam = params.get('sku') || params.get('p');
     if (skuParam) {
-      const found = initialProducts.find(
-        (prod) => prod.sku.toLowerCase() === skuParam.trim().toLowerCase()
-      );
-      if (found) {
-        setSelectedProduct(found);
-        setIsDetailOpen(true);
-      }
+      fetchProductBySku(skuParam).then((found) => {
+        if (found) {
+          setSelectedProduct(found);
+          setIsDetailOpen(true);
+        }
+      });
     }
-  }, [initialProducts]);
+  }, []);
 
   const handleSelectProduct = (product: Product) => {
     setSelectedProduct(product);
@@ -218,14 +233,14 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
         if (b && b.trim()) list.add(b.trim());
       });
     }
-    initialProducts.forEach((p) => {
+    products.forEach((p) => {
       if (p.brand && p.brand.trim()) list.add(p.brand.trim());
     });
     const sorted = Array.from(list).sort((a, b) =>
       a.localeCompare(b, 'en', { sensitivity: 'base' })
     );
     return ['All', ...sorted];
-  }, [initialProducts, availableBrands]);
+  }, [availableBrands, products]);
 
   // Filtered brands for searchable dropdown
   const filteredBrandsForDropdown = useMemo(() => {
@@ -234,123 +249,87 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     return brands.filter((b) => b === 'All' || b.toLowerCase().includes(q));
   }, [brands, brandSearchInput]);
 
-  // Configure Fuse.js for high-precision fuzzy searching
-  const fuse = useMemo(() => {
-    return new Fuse(initialProducts, {
-      keys: [
-        { name: 'name', weight: 0.4 },
-        { name: 'sku', weight: 0.3 },
-        { name: 'brand', weight: 0.2 },
-        { name: 'detail', weight: 0.1 },
-      ],
-      threshold: 0.35,
-      ignoreLocation: true,
-      minMatchCharLength: 1,
-    });
-  }, [initialProducts]);
-
-  // Filter products
-  const filteredProducts = useMemo(() => {
-    let result = initialProducts;
-
-    // 1. Fuzzy Search
-    const trimmedQuery = searchQuery.trim();
-    if (trimmedQuery) {
-      result = fuse.search(trimmedQuery).map((r) => r.item);
-    }
-
-    // 2. Brand Filter
-    if (selectedBrand !== 'All') {
-      result = result.filter((p) => p.brand.toLowerCase() === selectedBrand.toLowerCase());
-    }
-
-    // 3. Favorites Filter
-    if (onlyFavorites) {
-      result = result.filter((p) => favorites.includes(p.sku));
-    }
-
-    return result;
-  }, [
-    fuse,
-    initialProducts,
-    searchQuery,
-    selectedBrand,
-    onlyFavorites,
-    favorites,
-  ]);
-
-  // Sort products
-  const sortedProducts = useMemo(() => {
-    const list = [...filteredProducts];
-
-    switch (sortBy) {
-      case 'brand-asc':
-        return list.sort((a, b) => a.brand.localeCompare(b.brand, 'th'));
-      case 'brand-desc':
-        return list.sort((a, b) => b.brand.localeCompare(a.brand, 'th'));
-      case 'sku-asc':
-        return list.sort((a, b) => a.sku.localeCompare(b.sku));
-      case 'sku-desc':
-        return list.sort((a, b) => b.sku.localeCompare(a.sku));
-      case 'price-asc':
-        return list.sort((a, b) => {
-          const inqA = isPriceInquiry(a);
-          const inqB = isPriceInquiry(b);
-          if (inqA && !inqB) return 1;
-          if (!inqA && inqB) return -1;
-          return a.final_price - b.final_price;
-        });
-      case 'price-desc':
-        return list.sort((a, b) => {
-          const inqA = isPriceInquiry(a);
-          const inqB = isPriceInquiry(b);
-          if (inqA && !inqB) return 1;
-          if (!inqA && inqB) return -1;
-          return b.final_price - a.final_price;
-        });
-      case 'discount-desc':
-        return list.sort((a, b) => b.discount - a.discount);
-      case 'discount_pct-desc':
-        return list.sort((a, b) => {
-          const pctA = calculateDiscountPercent(a.base_price, a.discount);
-          const pctB = calculateDiscountPercent(b.base_price, b.discount);
-          return pctB - pctA;
-        });
-      case 'created_at-desc':
-      default:
-        return list.sort((a, b) => {
-          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return dateB - dateA;
-        });
-    }
-  }, [filteredProducts, sortBy]);
-
   // Reset pagination to page 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
+  }, [debouncedSearchQuery, selectedBrand, onlyFavorites, sortBy, itemsPerPage]);
+
+  // Server-side High-Performance Query Execution
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoadingProducts(true);
+
+    let sortField: SortField = 'created_at';
+    let sortOrder: SortOrder = 'desc';
+
+    if (sortBy === 'brand-asc') {
+      sortField = 'brand';
+      sortOrder = 'asc';
+    } else if (sortBy === 'brand-desc') {
+      sortField = 'brand';
+      sortOrder = 'desc';
+    } else if (sortBy === 'sku-asc') {
+      sortField = 'sku';
+      sortOrder = 'asc';
+    } else if (sortBy === 'sku-desc') {
+      sortField = 'sku';
+      sortOrder = 'desc';
+    } else if (sortBy === 'price-asc') {
+      sortField = 'final_price';
+      sortOrder = 'asc';
+    } else if (sortBy === 'price-desc') {
+      sortField = 'final_price';
+      sortOrder = 'desc';
+    } else if (sortBy === 'discount-desc') {
+      sortField = 'discount';
+      sortOrder = 'desc';
+    } else if (sortBy === 'discount_pct-desc') {
+      sortField = 'discount_percent';
+      sortOrder = 'desc';
+    }
+
+    queryProducts({
+      search: debouncedSearchQuery,
+      brand: selectedBrand,
+      sortField,
+      sortOrder,
+      page: currentPage,
+      pageSize: itemsPerPage,
+      skus: onlyFavorites ? (favorites.length > 0 ? favorites : ['__no_favorites__']) : undefined,
+    })
+      .then((res) => {
+        if (isMounted) {
+          setProducts(res.products);
+          setTotalItems(res.totalCount);
+          setTotalPages(res.totalPages);
+          setIsLoadingProducts(false);
+        }
+      })
+      .catch((err) => {
+        console.error('Catalog query error:', err);
+        if (isMounted) setIsLoadingProducts(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [
-    searchQuery,
+    debouncedSearchQuery,
     selectedBrand,
     onlyFavorites,
+    favorites,
     sortBy,
+    currentPage,
     itemsPerPage,
   ]);
 
-  // Paginated Slice
-  const totalItems = sortedProducts.length;
   const isAllItems = itemsPerPage === -1;
-  const totalPages = isAllItems ? 1 : Math.max(1, Math.ceil(totalItems / itemsPerPage));
   const safeCurrentPage = Math.min(currentPage, totalPages);
-
-  const paginatedProducts = useMemo(() => {
-    if (isAllItems) return sortedProducts;
-    const startIndex = (safeCurrentPage - 1) * itemsPerPage;
-    return sortedProducts.slice(startIndex, startIndex + itemsPerPage);
-  }, [sortedProducts, isAllItems, safeCurrentPage, itemsPerPage]);
+  const paginatedProducts = products;
 
   const clearAllFilters = useCallback(() => {
     setSearchQuery('');
+    setDebouncedSearchQuery('');
     setSelectedBrand('All');
     setOnlyFavorites(false);
     setSortBy('created_at-desc');
@@ -709,8 +688,13 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       <main className="max-w-7xl mx-auto px-3 sm:px-6 pt-4">
         {/* Results summary header */}
         <div className="flex flex-wrap items-center justify-between pb-3 gap-2 text-xs text-zinc-400">
-          <div>
-            พบสินค้าทั้งหมด <strong className="text-amber-400 font-bold">{totalItems}</strong> รายการ
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span>
+              พบสินค้าทั้งหมด <strong className="text-amber-400 font-bold">{totalItems}</strong> รายการ
+            </span>
+            {isLoadingProducts && (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
+            )}
             {totalItems > 0 && !isAllItems && (
               <span>
                 {' '}(แสดง {startIndex + 1} - {endIndex})
