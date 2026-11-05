@@ -168,8 +168,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             {product.name}
           </h3>
 
-          {/* Price */}
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {/* Price & Quick Quote Button */}
+          <div className="flex items-center justify-between gap-2 mt-1 flex-wrap">
             {isInquirePrice ? (
               <span className="text-sm sm:text-base font-black text-rose-500 tracking-tight">
                 สอบถาม
@@ -186,31 +186,37 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 </span>
               </div>
             )}
+
+            {/* Prominent "+ ขอราคา" button right on the card */}
+            {onAddToQuotation && (
+              <button
+                type="button"
+                onClick={handleAddToQuote}
+                className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                  addedToQuote
+                    ? 'bg-amber-400 text-zinc-950 border-amber-400 font-black shadow-xs scale-105'
+                    : 'bg-zinc-800/90 hover:bg-zinc-700 text-zinc-200 hover:text-amber-400 border-zinc-700 hover:border-amber-400/50'
+                }`}
+                title="เพิ่มรายการนี้ลงในใบขอใบเสนอราคา"
+              >
+                {addedToQuote ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-zinc-950" />
+                    <span>เพิ่มแล้ว!</span>
+                  </>
+                ) : (
+                  <>
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
+                    <span>+ ขอราคา</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Right side: Quote, Heart & Share action buttons */}
+        {/* Right side: Heart & Share action buttons */}
         <div className="flex flex-col items-center justify-between self-stretch py-0.5 shrink-0 gap-1.5">
-          {/* Add to Quotation button */}
-          {onAddToQuotation && (
-            <button
-              type="button"
-              onClick={handleAddToQuote}
-              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                addedToQuote
-                  ? 'bg-amber-400 text-zinc-950 border-amber-400 scale-105 shadow-sm'
-                  : 'border-zinc-800 text-zinc-400 hover:text-amber-400 hover:bg-zinc-800'
-              }`}
-              title="เพิ่มเข้าใบขอราคา"
-            >
-              {addedToQuote ? (
-                <Check className="w-4 h-4 text-zinc-950" />
-              ) : (
-                <FileSpreadsheet className="w-4 h-4" />
-              )}
-            </button>
-          )}
-
           {/* Heart / Wishlist button */}
           <button
             type="button"

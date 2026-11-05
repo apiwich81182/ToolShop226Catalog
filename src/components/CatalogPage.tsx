@@ -1023,8 +1023,34 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
             )}
           </div>
 
-          {/* Right Sidebar: Sticky LINE Banner */}
-          <aside className="w-full lg:w-72 xl:w-80 shrink-0 lg:sticky lg:top-20 space-y-4">
+          {/* Right Sidebar: Sticky Quotation Card & LINE Banner */}
+          <aside className="w-full lg:w-72 xl:w-80 shrink-0 lg:sticky lg:top-20 space-y-3">
+            {/* Quick Quotation Basket Card */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 shadow-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0">
+                    <FileSpreadsheet className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-white">ใบขอเสนอราคา</h3>
+                    <p className="text-[10px] text-zinc-400">{quotationItems.length} รายการที่เลือกไว้</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsQuotationModalOpen(true)}
+                  className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-zinc-950 font-black rounded-xl text-xs transition-colors cursor-pointer shadow-md"
+                >
+                  {quotationItems.length > 0 ? 'เปิดดูรายการ' : 'เริ่มขอราคา'}
+                </button>
+              </div>
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
+                กดปุ่ม <span className="text-amber-400 font-bold">+ ขอราคา</span> บนสินค้าเพื่อรวมรายการ พิมพ์ใบเสนอราคา (PDF) หรือส่งเข้า LINE ได้ทันที
+              </p>
+            </div>
+
+            {/* LINE Mascot Banner */}
             <a
               href={generalLineUrl}
               target="_blank"
