@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
+import { generateAdminToken, verifyAdminToken, getAdminTokenFromRequest } from '@/lib/authUtils';
 
 // In-memory sliding window rate limiter for brute-force protection
 interface RateLimitRecord {
@@ -22,6 +24,33 @@ function getClientIp(req: Request): string {
   return 'unknown-ip';
 }
 
+/**
+ * GET: Check whether the current session has valid admin authorization
+ */
+export async function GET(req: Request) {
+  const token = getAdminTokenFromRequest(req);
+  const isValid = verifyAdminToken(token);
+  return NextResponse.json({ authenticated: isValid });
+}
+
+/**
+ * DELETE: Logout admin and clear session cookie
+ */
+export async function DELETE() {
+  const res = NextResponse.json({ success: true, message: 'ออกจากระบบเรียบร้อยแล้ว' });
+  res.cookies.set('admin_session', '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  });
+  return res;
+}
+
+/**
+ * POST: Authenticate admin with password and set secure HTTP-only cookie
+ */
 export async function POST(req: Request) {
   try {
     const ip = getClientIp(req);
@@ -50,12 +79,48 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { password } = body;
 
-    const serverPassword = process.env.ADMIN_PASSWORD || 'Jd245727';
+    const serverPassword = process.env.ADMIN_PASSWORD;
 
-    if (typeof password === 'string' && password === serverPassword) {
-      // Clear failed attempts on successful login
-      loginAttempts.delete(ip);
-      return NextResponse.json({ success: true });
+    // Secure check: ADMIN_PASSWORD must be configured in environment variables
+    if (!serverPassword) {
+      console.error('CRITICAL: ADMIN_PASSWORD environment variable is not configured');
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'ระบบยังไม่ได้ตั้งค่ารหัสผ่านผู้ดูแลระบบ (ADMIN_PASSWORD) ใน Environment Variables',
+        },
+        { status: 500 }
+      );
+    }
+
+    if (typeof password === 'string') {
+      const passwordBuffer = Buffer.from(password.trim());
+      const serverPasswordBuffer = Buffer.from(serverPassword.trim());
+
+      // Timing-safe comparison to prevent timing attacks
+      const isMatch =
+        passwordBuffer.length === serverPasswordBuffer.length &&
+        crypto.timingSafeEqual(passwordBuffer, serverPasswordBuffer);
+
+      if (isMatch) {
+        // Clear failed attempts on successful login
+        loginAttempts.delete(ip);
+
+        // Generate HMAC-signed admin session token
+        const token = generateAdminToken();
+
+        const res = NextResponse.json({ success: true });
+        // Set secure HTTP-only cookie (7 days duration)
+        res.cookies.set('admin_session', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 60 * 60 * 24 * 7, // 7 days
+        });
+
+        return res;
+      }
     }
 
     // Increment failed attempt counter
@@ -69,9 +134,10 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        message: remainingAttempts > 0
-          ? `รหัสผ่านไม่ถูกต้อง (เหลือโอกาสลองอีก ${remainingAttempts} ครั้ง)`
-          : `รหัสผ่านไม่ถูกต้อง บัญชีถูกระงับชั่วคราว 5 นาที`,
+        message:
+          remainingAttempts > 0
+            ? `รหัสผ่านไม่ถูกต้อง (เหลือโอกาสลองอีก ${remainingAttempts} ครั้ง)`
+            : `รหัสผ่านไม่ถูกต้อง บัญชีถูกระงับชั่วคราว 5 นาที`,
       },
       { status: 401 }
     );

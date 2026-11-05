@@ -220,6 +220,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('admin_auth');
     }
+    fetch('/api/admin-login', { method: 'DELETE' }).catch(() => {});
     onBackToCatalog();
   };
 

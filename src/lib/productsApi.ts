@@ -478,6 +478,9 @@ export async function uploadProductImage(file: File, sku: string): Promise<strin
     if (r2Res.ok) {
       const data = await r2Res.json();
       if (data.url) return data.url;
+    } else if (r2Res.status === 401) {
+      const errData = await r2Res.json().catch(() => ({}));
+      throw new Error(errData.error || 'กรุณาเข้าสู่ระบบแอดมินใหม่อีกครั้งเพื่ออัปโหลดรูปภาพ');
     }
   } catch (r2Err) {
     console.warn('Cloudflare R2 upload skipped or failed, trying Supabase fallback:', r2Err);
