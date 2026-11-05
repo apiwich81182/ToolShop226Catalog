@@ -5,6 +5,7 @@ import { Product, SortField, SortOrder } from '@/types/product';
 import { ProductCard } from './ProductCard';
 import { ProductDetailModal } from './ProductDetailModal';
 import { AdminLoginModal } from './AdminLoginModal';
+import { PolicyModal, PolicyTab } from './PolicyModal';
 import { queryProducts, fetchProductBySku } from '@/lib/productsApi';
 import { calculateDiscountPercent, isPriceInquiry } from '@/lib/utils';
 import {
@@ -62,6 +63,15 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState<boolean>(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(false);
   const logoClicksRef = useRef<{ count: number; timer: NodeJS.Timeout | null }>({ count: 0, timer: null });
+
+  // Policy & Terms Modal State
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState<boolean>(false);
+  const [policyTab, setPolicyTab] = useState<PolicyTab>('terms');
+
+  const handleOpenPolicy = useCallback((tab: PolicyTab) => {
+    setPolicyTab(tab);
+    setIsPolicyModalOpen(true);
+  }, []);
 
   // Searchable Brand Dropdown State
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState<boolean>(false);
@@ -900,6 +910,43 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       </main>
 
       {/* ============================================================== */}
+      {/* FOOTER & LEGAL POLICIES                                        */}
+      {/* ============================================================== */}
+      <footer className="border-t border-zinc-900 bg-zinc-950/80 mt-12 py-8 px-4 text-center text-xs text-zinc-500 pb-28 sm:pb-8">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-zinc-300">TOOL SHOP 226 Plus</span>
+            <span>&copy; {new Date().getFullYear()} All Rights Reserved.</span>
+          </div>
+          <div className="flex items-center flex-wrap justify-center gap-3.5 text-zinc-400">
+            <button
+              type="button"
+              onClick={() => handleOpenPolicy('terms')}
+              className="hover:text-amber-400 transition-colors cursor-pointer"
+            >
+              ข้อกำหนดการใช้งาน
+            </button>
+            <span className="text-zinc-700">&bull;</span>
+            <button
+              type="button"
+              onClick={() => handleOpenPolicy('privacy')}
+              className="hover:text-amber-400 transition-colors cursor-pointer"
+            >
+              นโยบายความเป็นส่วนตัว (PDPA)
+            </button>
+            <span className="text-zinc-700">&bull;</span>
+            <button
+              type="button"
+              onClick={() => handleOpenPolicy('warranty')}
+              className="hover:text-amber-400 transition-colors cursor-pointer"
+            >
+              การรับประกันและจัดส่ง
+            </button>
+          </div>
+        </div>
+      </footer>
+
+      {/* ============================================================== */}
       {/* MOBILE BOTTOM NAVIGATION BAR                                   */}
       {/* ============================================================== */}
       <nav className="sm:hidden fixed bottom-0 inset-x-0 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800 z-40 px-8 py-2 flex justify-around items-center">
@@ -955,6 +1002,15 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
           setIsAdminLoggedIn(true);
           onOpenAdmin?.();
         }}
+      />
+
+      {/* ============================================================== */}
+      {/* POLICIES, TERMS & WARRANTY MODAL                               */}
+      {/* ============================================================== */}
+      <PolicyModal
+        isOpen={isPolicyModalOpen}
+        onClose={() => setIsPolicyModalOpen(false)}
+        initialTab={policyTab}
       />
     </div>
   );
