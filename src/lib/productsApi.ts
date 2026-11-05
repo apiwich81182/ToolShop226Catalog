@@ -101,7 +101,7 @@ export async function fetchProducts(): Promise<Product[]> {
 
       if (error) {
         console.warn('Supabase fetch error, fallback to local:', error.message);
-      } else if (data && data.length > 0) {
+      } else if (data) {
         return data as Product[];
       }
     } catch (err) {

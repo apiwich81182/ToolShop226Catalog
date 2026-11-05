@@ -786,7 +786,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       TOOL SHOP 226 Plus Admin
                     </h1>
                     <span className="bg-zinc-850 text-amber-400 text-xs font-bold px-2.5 py-0.5 rounded-full border border-zinc-700/80 shrink-0">
-                      {localProducts.length} สินค้า
+                      {totalCount.toLocaleString()} สินค้า
                     </span>
                   </div>
                   <p className="text-[11px] sm:text-xs text-zinc-400 truncate hidden sm:block">
