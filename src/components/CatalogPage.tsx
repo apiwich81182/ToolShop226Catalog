@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { Product, SortField, SortOrder } from '@/types/product';
+import { Product, SortField, SortOrder, QuotationItem } from '@/types/product';
 import { ProductCard } from './ProductCard';
 import { ProductDetailModal } from './ProductDetailModal';
+import { QuotationModal } from './QuotationModal';
 import { AdminLoginModal } from './AdminLoginModal';
 import { PolicyModal, PolicyTab } from './PolicyModal';
 import { queryProducts, fetchProductBySku } from '@/lib/productsApi';
@@ -24,6 +25,8 @@ import {
   ChevronDown,
   Check,
   Loader2,
+  FileSpreadsheet,
+  Download,
 } from 'lucide-react';
 
 interface CatalogPageProps {
@@ -63,6 +66,16 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState<boolean>(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(false);
   const logoClicksRef = useRef<{ count: number; timer: NodeJS.Timeout | null }>({ count: 0, timer: null });
+
+  // Quotation Basket State
+  const [quotationItems, setQuotationItems] = useState<QuotationItem[]>([]);
+  const [isQuotationModalOpen, setIsQuotationModalOpen] = useState<boolean>(false);
+  const [quotationToast, setQuotationToast] = useState<string | null>(null);
+
+  // PWA Install Prompt State
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
+  const [canInstallPwa, setCanInstallPwa] = useState<boolean>(false);
 
   // Policy & Terms Modal State
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState<boolean>(false);
@@ -150,8 +163,107 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       if (cachedFavs) {
         setFavorites(JSON.parse(cachedFavs));
       }
+      const cachedQuote = localStorage.getItem('catalog_quotation_basket');
+      if (cachedQuote) {
+        setQuotationItems(JSON.parse(cachedQuote));
+      }
     } catch {
       // Ignore localStorage errors
+    }
+  }, []);
+
+  // Capture PWA install prompt event
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleBeforeInstall = (e: any) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+      setCanInstallPwa(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
+
+  const handleInstallPwa = async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const choiceResult = await deferredInstallPrompt.userChoice;
+      if (choiceResult?.outcome === 'accepted') {
+        setCanInstallPwa(false);
+      }
+      setDeferredInstallPrompt(null);
+    }
+  };
+
+  // Quotation basket handlers
+  const handleAddToQuotation = useCallback((product: Product, quantity = 1) => {
+    setQuotationItems((prev) => {
+      const existingIndex = prev.findIndex((item) => item.product.sku === product.sku);
+      let updated: QuotationItem[];
+      if (existingIndex >= 0) {
+        updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: updated[existingIndex].quantity + quantity,
+        };
+      } else {
+        updated = [...prev, { product, quantity }];
+      }
+
+      try {
+        localStorage.setItem('catalog_quotation_basket', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    setQuotationToast(`เพิ่ม [${product.sku}] ในรายการขอราคาแล้ว`);
+    setTimeout(() => {
+      setQuotationToast(null);
+    }, 2800);
+  }, []);
+
+  const handleUpdateQuotationQty = useCallback((sku: string, delta: number) => {
+    setQuotationItems((prev) => {
+      const updated = prev
+        .map((item) => {
+          if (item.product.sku === sku) {
+            const newQty = item.quantity + delta;
+            return newQty > 0 ? { ...item, quantity: newQty } : null;
+          }
+          return item;
+        })
+        .filter(Boolean) as QuotationItem[];
+
+      try {
+        localStorage.setItem('catalog_quotation_basket', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  }, []);
+
+  const handleRemoveQuotationItem = useCallback((sku: string) => {
+    setQuotationItems((prev) => {
+      const updated = prev.filter((item) => item.product.sku !== sku);
+      try {
+        localStorage.setItem('catalog_quotation_basket', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  }, []);
+
+  const handleClearQuotation = useCallback(() => {
+    setQuotationItems([]);
+    try {
+      localStorage.removeItem('catalog_quotation_basket');
+    } catch {
+      // ignore
     }
   }, []);
 
@@ -432,8 +544,28 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
               )}
             </div>
 
-            {/* Action Buttons: Favorites, LINE Official & Admin */}
+            {/* Action Buttons: Quotation, Favorites, LINE Official, PWA Install & Admin */}
             <div className="flex items-center gap-1.5 shrink-0">
+              {/* Quotation Basket Button */}
+              <button
+                type="button"
+                onClick={() => setIsQuotationModalOpen(true)}
+                className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                  quotationItems.length > 0
+                    ? 'bg-amber-400 text-zinc-950 border-amber-400 shadow-md shadow-amber-400/20'
+                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border-zinc-800'
+                }`}
+                title="ดูรายการขอใบเสนอราคา"
+              >
+                <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                <span className="hidden md:inline">ขอใบเสนอราคา</span>
+                {quotationItems.length > 0 && (
+                  <span className="bg-zinc-950 text-amber-400 text-[10px] font-black px-1.5 py-0.2 rounded-full leading-none">
+                    {quotationItems.length}
+                  </span>
+                )}
+              </button>
+
               {/* Favorites Button (Desktop & Tablet) */}
               <button
                 type="button"
@@ -459,7 +591,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                       : 'text-zinc-400'
                   }`}
                 />
-                <span className="hidden sm:inline">รายการโปรด</span>
+                <span className="hidden lg:inline">รายการโปรด</span>
                 {favorites.length > 0 && (
                   <span
                     className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-full leading-none ${
@@ -472,6 +604,19 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                   </span>
                 )}
               </button>
+
+              {/* Install PWA Button (Visible when browser allows Add to Home Screen) */}
+              {canInstallPwa && (
+                <button
+                  type="button"
+                  onClick={handleInstallPwa}
+                  className="hidden sm:inline-flex bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-400/40 p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-bold transition-all items-center gap-1.5 shadow-sm cursor-pointer"
+                  title="ติดตั้งแอป TOOL SHOP 226 Plus บนเครื่องของคุณ"
+                >
+                  <Download className="w-4 h-4" />
+                  <span className="hidden xl:inline">ติดตั้งแอป</span>
+                </button>
+              )}
 
               {/* LINE Button */}
               <a
@@ -769,6 +914,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                         isFavorite={favorites.includes(product.sku)}
                         onToggleFavorite={handleToggleFavorite}
                         onSelectProduct={handleSelectProduct}
+                        onAddToQuotation={handleAddToQuotation}
                       />
                     ))}
                   </div>
@@ -782,6 +928,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                         isFavorite={favorites.includes(product.sku)}
                         onToggleFavorite={handleToggleFavorite}
                         onSelectProduct={handleSelectProduct}
+                        onAddToQuotation={handleAddToQuotation}
                       />
                     ))}
                   </div>
@@ -949,12 +1096,12 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       {/* ============================================================== */}
       {/* MOBILE BOTTOM NAVIGATION BAR                                   */}
       {/* ============================================================== */}
-      <nav className="sm:hidden fixed bottom-0 inset-x-0 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800 z-40 px-8 py-2 flex justify-around items-center">
+      <nav className="sm:hidden fixed bottom-0 inset-x-0 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800 z-40 px-6 py-2 flex justify-around items-center">
         {/* หน้าหลัก */}
         <button
           type="button"
           onClick={() => handleNavTabClick('all')}
-          className={`flex flex-col items-center gap-1 p-1 text-xs font-bold transition-colors ${
+          className={`flex flex-col items-center gap-1 p-1 text-xs font-bold transition-colors cursor-pointer ${
             activeNavTab === 'all' ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-300'
           }`}
         >
@@ -962,11 +1109,28 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
           <span>หน้าหลัก</span>
         </button>
 
+        {/* ขอใบเสนอราคา */}
+        <button
+          type="button"
+          onClick={() => setIsQuotationModalOpen(true)}
+          className={`flex flex-col items-center gap-1 p-1 text-xs font-bold relative transition-colors cursor-pointer ${
+            quotationItems.length > 0 ? 'text-amber-400 font-extrabold' : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          <FileSpreadsheet className="w-5 h-5" />
+          <span>ขอราคา</span>
+          {quotationItems.length > 0 && (
+            <span className="absolute top-0 right-1 bg-amber-400 text-zinc-950 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">
+              {quotationItems.length}
+            </span>
+          )}
+        </button>
+
         {/* รายการโปรด */}
         <button
           type="button"
           onClick={() => handleNavTabClick('favorites')}
-          className={`flex flex-col items-center gap-1 p-1 text-xs font-bold relative transition-colors ${
+          className={`flex flex-col items-center gap-1 p-1 text-xs font-bold relative transition-colors cursor-pointer ${
             activeNavTab === 'favorites' ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-300'
           }`}
         >
@@ -981,7 +1145,56 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       </nav>
 
       {/* ============================================================== */}
-      {/* PRODUCT DETAIL MODAL (ถอดแบบรูปสเก็ตช์ WIREFRAME เป๊ะๆ 6 แถวข้อมูล)  */}
+      {/* FLOATING ACTION PILL: QUOTATION BASKET                         */}
+      {/* ============================================================== */}
+      {quotationItems.length > 0 && (
+        <aside
+          role="region"
+          aria-label="รายการขอใบเสนอราคาด่วน"
+          className="fixed bottom-16 sm:bottom-6 right-4 sm:right-6 z-30 print:hidden animate-in slide-in-from-bottom-3 duration-300"
+        >
+          <button
+            type="button"
+            onClick={() => setIsQuotationModalOpen(true)}
+            className="flex items-center gap-2.5 bg-amber-400 hover:bg-amber-300 text-zinc-950 font-black px-4 py-3 rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer border-2 border-amber-300"
+          >
+            <div className="relative">
+              <FileSpreadsheet className="w-5 h-5" />
+              <span className="absolute -top-2 -right-2 bg-zinc-950 text-amber-400 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                {quotationItems.reduce((acc, i) => acc + i.quantity, 0)}
+              </span>
+            </div>
+            <span className="text-xs sm:text-sm">ดูใบขอราคา ({quotationItems.length})</span>
+          </button>
+        </aside>
+      )}
+
+      {/* Floating Toast Notification when an item is added */}
+      {quotationToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-20 right-4 sm:right-6 z-50 bg-zinc-900 border border-amber-400/50 text-zinc-100 text-xs font-bold px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          <div className="w-6 h-6 rounded-lg bg-amber-400/20 text-amber-400 flex items-center justify-center shrink-0">
+            <Check className="w-3.5 h-3.5" />
+          </div>
+          <span>{quotationToast}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setQuotationToast(null);
+              setIsQuotationModalOpen(true);
+            }}
+            className="ml-2 text-amber-400 underline font-black hover:text-amber-300 cursor-pointer"
+          >
+            ดูรายการ
+          </button>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* PRODUCT DETAIL MODAL                                           */}
       {/* ============================================================== */}
       <ProductDetailModal
         product={selectedProduct}
@@ -989,6 +1202,19 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
         onClose={handleCloseDetail}
         isFavorite={selectedProduct ? favorites.includes(selectedProduct.sku) : false}
         onToggleFavorite={handleToggleFavorite}
+        onAddToQuotation={handleAddToQuotation}
+      />
+
+      {/* ============================================================== */}
+      {/* QUOTATION BASKET & PDF MODAL                                   */}
+      {/* ============================================================== */}
+      <QuotationModal
+        isOpen={isQuotationModalOpen}
+        onClose={() => setIsQuotationModalOpen(false)}
+        items={quotationItems}
+        onUpdateQuantity={handleUpdateQuotationQty}
+        onRemoveItem={handleRemoveQuotationItem}
+        onClearAll={handleClearQuotation}
       />
 
       {/* ============================================================== */}

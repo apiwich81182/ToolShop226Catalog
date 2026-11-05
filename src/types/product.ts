@@ -58,3 +58,9 @@ export interface ProductQueryResult {
   totalPages: number;
   missingImagesCount?: number;
 }
+
+export interface QuotationItem {
+  product: Product;
+  quantity: number;
+}
+

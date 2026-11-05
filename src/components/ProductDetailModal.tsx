@@ -12,6 +12,9 @@ import {
   Heart,
   Wrench,
   ExternalLink,
+  FileSpreadsheet,
+  Plus,
+  Minus,
 } from 'lucide-react';
 
 interface ProductDetailModalProps {
@@ -20,6 +23,7 @@ interface ProductDetailModalProps {
   onClose: () => void;
   isFavorite?: boolean;
   onToggleFavorite?: (sku: string) => void;
+  onAddToQuotation?: (product: Product, quantity: number) => void;
 }
 
 export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
@@ -28,10 +32,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onClose,
   isFavorite = false,
   onToggleFavorite,
+  onAddToQuotation,
 }) => {
   const [copiedSku, setCopiedSku] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+  const [addedToQuote, setAddedToQuote] = useState(false);
 
   // Close on Escape key press
   useEffect(() => {
@@ -48,11 +55,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     };
   }, [isOpen, onClose]);
 
-  // Reset image error state when product changes
+  // Reset state when product changes
   useEffect(() => {
     setImgError(false);
     setCopiedSku(false);
     setCopiedLink(false);
+    setQuantity(1);
+    setAddedToQuote(false);
   }, [product]);
 
   if (!isOpen || !product) return null;
@@ -72,14 +81,22 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     }
   };
 
+  const handleAddToQuote = () => {
+    if (onAddToQuotation && product) {
+      onAddToQuotation(product, quantity);
+      setAddedToQuote(true);
+      setTimeout(() => setAddedToQuote(false), 2000);
+    }
+  };
+
   const handleShare = async () => {
     const priceText = isInquirePrice ? 'ติดต่อสอบถามราคา' : `฿${formatNumber(product.final_price)}`;
     const shareUrl = typeof window !== 'undefined'
       ? `${window.location.origin}${window.location.pathname}?sku=${encodeURIComponent(product.sku)}`
-      : '';
+      : `https://toolshop226catalog.com/?sku=${encodeURIComponent(product.sku)}`;
     const shareData = {
       title: `${product.brand} - ${product.name}`,
-      text: `รหัส: ${product.sku} | ราคา: ${priceText}`,
+      text: `รหัส: ${product.sku} | ราคา: ${priceText} | TOOL SHOP 226 Plus`,
       url: shareUrl,
     };
 
@@ -91,7 +108,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       }
     } else {
       try {
-        await navigator.clipboard.writeText(shareUrl || window.location.href);
+        await navigator.clipboard.writeText(
+          `${product.name} (รหัส: ${product.sku}) ราคา: ${priceText}\nดูรายละเอียด: ${shareUrl}`
+        );
         setCopiedLink(true);
         setTimeout(() => setCopiedLink(false), 2000);
       } catch (err) {
@@ -306,8 +325,60 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </div>
             </div>
 
-            {/* ORDER / CONTACT ACTION BUTTON (LINE OFFICIAL ACCOUNT) */}
-            <div className="pt-4 mt-2">
+            {/* ORDER / CONTACT ACTION BUTTONS (QUOTATION + LINE) */}
+            <div className="pt-4 mt-2 space-y-2.5">
+              {/* Quantity Stepper & Add to Quotation Basket Button */}
+              {onAddToQuotation && (
+                <div className="flex items-center gap-2">
+                  {/* Quantity Stepper */}
+                  <div className="flex items-center border border-zinc-700 bg-zinc-950 rounded-xl overflow-hidden h-11 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                      className="px-3 h-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                      title="ลดจำนวน"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="w-9 text-center text-sm font-bold text-zinc-100">
+                      {quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setQuantity((q) => q + 1)}
+                      className="px-3 h-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                      title="เพิ่มจำนวน"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Add to quotation button */}
+                  <button
+                    type="button"
+                    onClick={handleAddToQuote}
+                    className={`flex-1 h-11 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
+                      addedToQuote
+                        ? 'bg-amber-400 text-zinc-950 scale-[0.98]'
+                        : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-100 hover:text-amber-400 border border-zinc-750 hover:border-amber-400/50'
+                    }`}
+                  >
+                    {addedToQuote ? (
+                      <>
+                        <Check className="w-4 h-4 text-zinc-950" />
+                        <span>เพิ่มลงรายการแล้ว!</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileSpreadsheet className="w-4 h-4 text-amber-400" />
+                        <span>+ เพิ่มในรายการขอใบเสนอราคา</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* LINE Official Account Button */}
               <a
                 href={lineUrl}
                 target="_blank"

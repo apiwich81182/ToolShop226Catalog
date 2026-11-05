@@ -9,6 +9,8 @@ import {
   Check,
   Heart,
   Share2,
+  FileSpreadsheet,
+  Plus,
 } from 'lucide-react';
 
 interface ProductCardProps {
@@ -17,6 +19,7 @@ interface ProductCardProps {
   isFavorite?: boolean;
   onToggleFavorite?: (sku: string) => void;
   onSelectProduct?: (product: Product) => void;
+  onAddToQuotation?: (product: Product) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -25,10 +28,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   isFavorite = false,
   onToggleFavorite,
   onSelectProduct,
+  onAddToQuotation,
 }) => {
   const [imgError, setImgError] = useState(false);
   const [copiedSku, setCopiedSku] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
+  const [addedToQuote, setAddedToQuote] = useState(false);
 
   const isInquirePrice = isPriceInquiry(product);
   const hasDiscount = !isInquirePrice && Number(product.discount) > 0;
@@ -46,16 +51,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     }
   };
 
+  const handleAddToQuote = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onAddToQuotation) {
+      onAddToQuotation(product);
+      setAddedToQuote(true);
+      setTimeout(() => setAddedToQuote(false), 1800);
+    }
+  };
+
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const priceText = isInquirePrice ? 'ติดต่อสอบถามราคา' : `฿${formatNumber(product.final_price)}`;
     const shareUrl = typeof window !== 'undefined'
       ? `${window.location.origin}${window.location.pathname}?sku=${encodeURIComponent(product.sku)}`
-      : '';
+      : `https://toolshop226catalog.com/?sku=${encodeURIComponent(product.sku)}`;
     const shareData = {
       title: `${product.brand} - ${product.name}`,
-      text: `รหัส: ${product.sku} | ราคา: ${priceText}`,
+      text: `รหัส: ${product.sku} | ราคา: ${priceText} | TOOL SHOP 226 Plus`,
       url: shareUrl,
     };
 
@@ -68,7 +83,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     } else {
       try {
         await navigator.clipboard.writeText(
-          `${product.name} (รหัส: ${product.sku}) ราคา: ${priceText}\nดูรายละเอียด: ${shareUrl}`
+          `${product.name} (รหัส: ${product.sku}) ราคา: ${priceText}\nดูรายละเอียดและสั่งซื้อ: ${shareUrl}`
         );
         setCopiedShare(true);
         setTimeout(() => setCopiedShare(false), 2000);
@@ -174,8 +189,28 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         </div>
 
-        {/* Right side: Heart & Share action buttons */}
-        <div className="flex flex-col items-center justify-between self-stretch py-0.5 shrink-0">
+        {/* Right side: Quote, Heart & Share action buttons */}
+        <div className="flex flex-col items-center justify-between self-stretch py-0.5 shrink-0 gap-1.5">
+          {/* Add to Quotation button */}
+          {onAddToQuotation && (
+            <button
+              type="button"
+              onClick={handleAddToQuote}
+              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                addedToQuote
+                  ? 'bg-amber-400 text-zinc-950 border-amber-400 scale-105 shadow-sm'
+                  : 'border-zinc-800 text-zinc-400 hover:text-amber-400 hover:bg-zinc-800'
+              }`}
+              title="เพิ่มเข้าใบขอราคา"
+            >
+              {addedToQuote ? (
+                <Check className="w-4 h-4 text-zinc-950" />
+              ) : (
+                <FileSpreadsheet className="w-4 h-4" />
+              )}
+            </button>
+          )}
+
           {/* Heart / Wishlist button */}
           <button
             type="button"
@@ -184,7 +219,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               e.stopPropagation();
               if (onToggleFavorite) onToggleFavorite(product.sku);
             }}
-            className={`p-1.5 rounded-lg border transition-colors ${
+            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
               isFavorite
                 ? 'bg-rose-500/20 border-rose-500/50 text-rose-500'
                 : 'border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800'
@@ -198,12 +233,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <button
             type="button"
             onClick={handleShare}
-            className="p-1.5 rounded-lg border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors relative"
+            className="p-1.5 rounded-lg border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors relative cursor-pointer"
             title="แชร์สินค้า"
           >
             <Share2 className="w-4 h-4" />
             {copiedShare && (
-              <span className="absolute -top-7 right-0 text-[10px] bg-amber-400 text-zinc-950 font-bold px-1.5 py-0.5 rounded whitespace-nowrap z-20">
+              <span className="absolute -top-7 right-0 text-[10px] bg-amber-400 text-zinc-950 font-bold px-1.5 py-0.5 rounded whitespace-nowrap z-20 shadow-md">
                 คัดลอกแล้ว!
               </span>
             )}
@@ -298,32 +333,68 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </h3>
         </div>
 
-        {/* Price Area */}
-        <div className="pt-2 border-t border-zinc-800 mt-auto flex items-baseline justify-between">
-          <div>
-            {!isInquirePrice && hasDiscount && (
-              <div className="flex items-center gap-1 text-[11px]">
-                <span className="text-zinc-500 line-through">
-                  ฿{formatNumber(product.base_price)}
-                </span>
-                <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-950/80 px-1 rounded">
-                  -{discountPercent}%
-                </span>
-              </div>
-            )}
-            <div className="flex items-baseline gap-1">
-              <span className="text-base sm:text-lg font-black text-rose-500 tracking-tight">
-                {isInquirePrice ? 'สอบถาม' : `฿${formatNumber(product.final_price)}`}
-              </span>
-              {!isInquirePrice && (
-                <span className="text-[10px] text-zinc-500">/ ชิ้น</span>
+        {/* Price Area & Action Buttons */}
+        <div className="pt-2 border-t border-zinc-800 mt-auto space-y-2">
+          <div className="flex items-baseline justify-between">
+            <div>
+              {!isInquirePrice && hasDiscount && (
+                <div className="flex items-center gap-1 text-[11px]">
+                  <span className="text-zinc-500 line-through">
+                    ฿{formatNumber(product.base_price)}
+                  </span>
+                  <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-950/80 px-1 rounded">
+                    -{discountPercent}%
+                  </span>
+                </div>
               )}
+              <div className="flex items-baseline gap-1">
+                <span className="text-base sm:text-lg font-black text-rose-500 tracking-tight">
+                  {isInquirePrice ? 'สอบถาม' : `฿${formatNumber(product.final_price)}`}
+                </span>
+                {!isInquirePrice && (
+                  <span className="text-[10px] text-zinc-500">/ ชิ้น</span>
+                )}
+              </div>
             </div>
+
+            <button
+              type="button"
+              onClick={handleShare}
+              className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors relative"
+              title="แชร์สินค้า"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              {copiedShare && (
+                <span className="absolute -top-6 right-0 text-[10px] bg-amber-400 text-zinc-950 font-bold px-1.5 py-0.2 rounded whitespace-nowrap z-20 shadow-sm">
+                  คัดลอก!
+                </span>
+              )}
+            </button>
           </div>
 
-          <span className="text-[11px] font-medium text-amber-400 group-hover:translate-x-0.5 transition-transform">
-            ดูรายละเอียด &rarr;
-          </span>
+          {onAddToQuotation && (
+            <button
+              type="button"
+              onClick={handleAddToQuote}
+              className={`w-full py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                addedToQuote
+                  ? 'bg-amber-400 text-zinc-950 font-black scale-[0.98]'
+                  : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-amber-400 border border-zinc-700/80 hover:border-amber-400/50'
+              }`}
+            >
+              {addedToQuote ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>เพิ่มในรายการขอราคาแล้ว!</span>
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
+                  <span>+ ขอใบเสนอราคา</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
