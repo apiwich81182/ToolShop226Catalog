@@ -1,2 +1,5 @@
 User-agent: *
-Disallow: /
+Allow: /
+Disallow: /api/
+
+Sitemap: https://www.toolshop226catalog.com/sitemap.xml
