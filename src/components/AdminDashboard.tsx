@@ -14,6 +14,7 @@ import {
   saveBrands,
   queryProducts,
   fetchMissingImagesCount,
+  fetchAllProductsForExport,
 } from '@/lib/productsApi';
 import {
   formatNumber,
@@ -463,31 +464,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     showToast('info', 'ดาวน์โหลดเทมเพลต Excel เรียบร้อย (6 คอลัมน์: sku, name, brand, base_price, new_price, image_url)');
   };
 
-  const handleExportCatalog = () => {
-    if (localProducts.length === 0) {
-      showToast('error', 'ไม่มีข้อมูลสินค้าสำหรับ Export');
-      return;
+  const handleExportCatalog = async () => {
+    try {
+      showToast('info', 'กำลังเตรียมข้อมูลแคตาล็อกสำหรับ Export...');
+      const allProducts = await fetchAllProductsForExport();
+
+      if (!allProducts || allProducts.length === 0) {
+        showToast('error', 'ไม่มีข้อมูลสินค้าสำหรับ Export');
+        return;
+      }
+
+      const exportRows = allProducts.map((p) => {
+        const isInquire = isPriceInquiry(p);
+        return {
+          sku: p.sku,
+          name: p.name,
+          brand: p.brand,
+          base_price: isInquire ? 'สอบถาม' : p.base_price,
+          new_price: isInquire ? 'สอบถาม' : p.final_price,
+          image_url: p.image_url || '',
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(exportRows, {
+        header: ['sku', 'name', 'brand', 'base_price', 'new_price', 'image_url'],
+      });
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'HardwareCatalog');
+      XLSX.writeFile(workbook, `hardware_catalog_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      showToast('success', `Export แคตาล็อก ${allProducts.length} รายการสำเร็จ`);
+    } catch (e) {
+      console.error('Export error:', e);
+      showToast('error', 'เกิดข้อผิดพลาดในการ Export แคตาล็อก');
     }
-
-    const exportRows = localProducts.map((p) => {
-      const isInquire = isPriceInquiry(p);
-      return {
-        sku: p.sku,
-        name: p.name,
-        brand: p.brand,
-        base_price: isInquire ? 'สอบถาม' : p.base_price,
-        new_price: isInquire ? 'สอบถาม' : p.final_price,
-        image_url: p.image_url || '',
-      };
-    });
-
-    const worksheet = XLSX.utils.json_to_sheet(exportRows, {
-      header: ['sku', 'name', 'brand', 'base_price', 'new_price', 'image_url'],
-    });
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'HardwareCatalog');
-    XLSX.writeFile(workbook, `hardware_catalog_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    showToast('success', `Export แคตาล็อก ${localProducts.length} รายการสำเร็จ`);
   };
 
   const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {

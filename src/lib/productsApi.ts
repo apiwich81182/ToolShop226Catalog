@@ -62,6 +62,114 @@ export async function saveBrands(brands: string[]): Promise<string[]> {
   return unique;
 }
 
+/**
+ * Fetch total product count per brand directly from database (grouped by lowercase brand)
+ */
+export async function fetchBrandProductCounts(): Promise<Record<string, number>> {
+  if (isSupabaseConfigured()) {
+    try {
+      const counts: Record<string, number> = {};
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('brand')
+          .range(from, from + step - 1);
+
+        if (error || !data || data.length === 0) {
+          break;
+        }
+
+        for (const item of data) {
+          const raw = (item.brand || '').trim();
+          if (raw) {
+            const key = raw.toLowerCase();
+            counts[key] = (counts[key] || 0) + 1;
+          }
+        }
+
+        if (data.length < step) {
+          hasMore = false;
+        } else {
+          from += step;
+        }
+      }
+
+      return counts;
+    } catch (err) {
+      console.warn('Failed to fetch brand product counts from Supabase:', err);
+    }
+  }
+
+  // Fallback to local storage
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (cached) {
+        const prods: Product[] = JSON.parse(cached);
+        const counts: Record<string, number> = {};
+        for (const p of prods) {
+          const raw = (p.brand || '').trim();
+          if (raw) {
+            const key = raw.toLowerCase();
+            counts[key] = (counts[key] || 0) + 1;
+          }
+        }
+        return counts;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return {};
+}
+
+/**
+ * Fetch all products for complete Excel catalog export
+ */
+export async function fetchAllProductsForExport(): Promise<Product[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const all: Product[] = [];
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('name', { ascending: true })
+          .range(from, from + step - 1);
+
+        if (error || !data || data.length === 0) break;
+        all.push(...(data as Product[]));
+        if (data.length < step) hasMore = false;
+        else from += step;
+      }
+
+      if (all.length > 0) return all;
+    } catch (e) {
+      console.warn('Failed to fetch all products for export from Supabase:', e);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (cached) return JSON.parse(cached);
+    } catch {
+      // ignore
+    }
+  }
+
+  return INITIAL_PRODUCTS;
+}
+
 export async function fetchCategories(): Promise<string[]> {
   if (typeof window !== 'undefined') {
     const cached = localStorage.getItem(CATEGORIES_STORAGE_KEY);

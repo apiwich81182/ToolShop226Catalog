@@ -1,15 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product } from '@/types/product';
-import { X, Plus, Trash2, Tag, CheckCircle, AlertCircle } from 'lucide-react';
+import { fetchBrandProductCounts } from '@/lib/productsApi';
+import { X, Plus, Trash2, Tag, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface BrandCategoryManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
   brands: string[];
   categories?: string[];
-  products: Product[];
+  products?: Product[];
   onSaveBrands: (brands: string[]) => void;
   onSaveCategories?: (categories: string[]) => void;
 }
@@ -18,11 +19,34 @@ export const BrandCategoryManagerModal: React.FC<BrandCategoryManagerModalProps>
   isOpen,
   onClose,
   brands,
-  products,
+  products = [],
   onSaveBrands,
 }) => {
   const [newBrandInput, setNewBrandInput] = useState('');
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [brandCounts, setBrandCounts] = useState<Record<string, number>>({});
+  const [isLoadingCounts, setIsLoadingCounts] = useState(false);
+
+  // Fetch real product counts directly from database whenever modal opens
+  const loadCounts = () => {
+    setIsLoadingCounts(true);
+    fetchBrandProductCounts()
+      .then((counts) => {
+        setBrandCounts(counts);
+      })
+      .catch((err) => {
+        console.warn('Failed to load brand counts:', err);
+      })
+      .finally(() => {
+        setIsLoadingCounts(false);
+      });
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      loadCounts();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -50,8 +74,9 @@ export const BrandCategoryManagerModal: React.FC<BrandCategoryManagerModalProps>
 
   // Delete Brand
   const handleDeleteBrand = (brandToDelete: string) => {
-    const usageCount = products.filter(
-      (p) => p.brand.toLowerCase() === brandToDelete.toLowerCase()
+    const key = brandToDelete.trim().toLowerCase();
+    const usageCount = brandCounts[key] ?? products.filter(
+      (p) => (p.brand || '').trim().toLowerCase() === key
     ).length;
 
     const confirmText =
@@ -138,14 +163,25 @@ export const BrandCategoryManagerModal: React.FC<BrandCategoryManagerModalProps>
         {/* Brand List (Sorted A-Z) */}
         <div className="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar my-2">
           <div className="flex items-center justify-between text-xs text-zinc-400 px-1 mb-1">
-            <span>รายชื่อยี่ห้อทั้งหมด (เรียง A-Z)</span>
+            <span className="flex items-center gap-1.5">
+              <span>รายชื่อยี่ห้อทั้งหมด (เรียง A-Z)</span>
+              <button
+                type="button"
+                onClick={loadCounts}
+                title="รีเฟรชจำนวนสินค้าล่าสุด"
+                className="hover:text-amber-400 transition-colors cursor-pointer p-0.5"
+              >
+                <RefreshCw className={`w-3 h-3 ${isLoadingCounts ? 'animate-spin text-amber-400' : ''}`} />
+              </button>
+            </span>
             <span className="font-semibold text-amber-400">{brands.length} ยี่ห้อ</span>
           </div>
 
           <div className="space-y-1.5">
             {brands.map((brand) => {
-              const count = products.filter(
-                (p) => p.brand.toLowerCase() === brand.toLowerCase()
+              const key = brand.trim().toLowerCase();
+              const count = brandCounts[key] ?? products.filter(
+                (p) => (p.brand || '').trim().toLowerCase() === key
               ).length;
 
               return (
@@ -155,15 +191,21 @@ export const BrandCategoryManagerModal: React.FC<BrandCategoryManagerModalProps>
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-xs sm:text-sm font-bold text-zinc-100">{brand}</span>
-                    <span className="text-[10px] text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded-full font-medium">
-                      {count} สินค้า
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border transition-all ${
+                        count > 0
+                          ? 'text-amber-400 bg-amber-400/10 border-amber-400/30'
+                          : 'text-zinc-500 bg-zinc-900 border-zinc-800'
+                      }`}
+                    >
+                      {isLoadingCounts && Object.keys(brandCounts).length === 0 ? '...' : `${count} สินค้า`}
                     </span>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => handleDeleteBrand(brand)}
-                    className="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition-colors"
+                    className="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
                     title={`ลบยี่ห้อ ${brand}`}
                   >
                     <Trash2 className="w-4 h-4" />
