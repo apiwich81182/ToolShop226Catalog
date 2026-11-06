@@ -21,12 +21,17 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/:path*',
+        source: '/api/:path*',
         headers: [
           {
             key: 'X-Robots-Tag',
-            value: 'noindex, nofollow, noarchive, nosnippet',
+            value: 'noindex, nofollow',
           },
+        ],
+      },
+      {
+        source: '/:path*',
+        headers: [
           {
             key: 'X-Frame-Options',
             value: 'DENY',
