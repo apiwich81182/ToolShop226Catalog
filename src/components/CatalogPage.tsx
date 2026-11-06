@@ -69,6 +69,14 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
   const [canInstallPwa, setCanInstallPwa] = useState<boolean>(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
+  const [isAlreadyInstalled, setIsAlreadyInstalled] = useState<boolean>(false);
+  const [isIosDevice, setIsIosDevice] = useState<boolean>(false);
+
+  // Brand Chips Horizontal Scroll State
+  const brandBarRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState<boolean>(false);
+  const [canScrollRight, setCanScrollRight] = useState<boolean>(true);
 
   // Policy & Terms Modal State
   const [isPolicyModalOpen, setIsPolicyModalOpen] = useState<boolean>(false);
@@ -161,6 +169,23 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     }
   }, []);
 
+  // Detect Standalone PWA mode and iOS
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const standalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window.navigator as any).standalone === true;
+      setIsAlreadyInstalled(standalone);
+
+      const ios =
+        /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        !(window as any).MSStream;
+      setIsIosDevice(ios);
+    }
+  }, []);
+
   // Capture PWA install prompt event
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -180,8 +205,12 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       const choiceResult = await deferredInstallPrompt.userChoice;
       if (choiceResult?.outcome === 'accepted') {
         setCanInstallPwa(false);
+        setIsAlreadyInstalled(true);
       }
       setDeferredInstallPrompt(null);
+    } else {
+      // If browser cannot prompt automatically (e.g. iOS Safari, or manual add), show instructions modal
+      setIsInstallModalOpen(true);
     }
   };
 
@@ -281,6 +310,41 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     );
     return ['All', ...sorted];
   }, [availableBrands, products]);
+
+  // Brand Pills Horizontal Scroll logic
+  const checkBrandScroll = useCallback(() => {
+    if (brandBarRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = brandBarRef.current;
+      setCanScrollLeft(scrollLeft > 5);
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 5);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkBrandScroll();
+    const el = brandBarRef.current;
+    if (el) {
+      el.addEventListener('scroll', checkBrandScroll, { passive: true });
+      window.addEventListener('resize', checkBrandScroll);
+      return () => {
+        el.removeEventListener('scroll', checkBrandScroll);
+        window.removeEventListener('resize', checkBrandScroll);
+      };
+    }
+  }, [checkBrandScroll, brands]);
+
+  const handleBrandWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY !== 0 && brandBarRef.current) {
+      brandBarRef.current.scrollLeft += e.deltaY;
+    }
+  };
+
+  const scrollBrandBar = (direction: 'left' | 'right') => {
+    if (brandBarRef.current) {
+      const offset = direction === 'left' ? -260 : 260;
+      brandBarRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  };
 
   // Filtered brands for searchable dropdown
   const filteredBrandsForDropdown = useMemo(() => {
@@ -503,16 +567,16 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                 )}
               </button>
 
-              {/* Install PWA Button (Visible when browser allows Add to Home Screen) */}
-              {canInstallPwa && (
+              {/* Install App Button (Visible on Mobile, Tablet & Desktop when not in standalone mode) */}
+              {!isAlreadyInstalled && (
                 <button
                   type="button"
                   onClick={handleInstallPwa}
-                  className="hidden sm:inline-flex bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-amber-400/40 p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-bold transition-all items-center gap-1.5 shadow-sm cursor-pointer"
+                  className="bg-zinc-900 hover:bg-zinc-800 text-amber-400 border border-amber-400/40 p-2 sm:px-3 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
                   title="ติดตั้งแอป TOOL SHOP 226 Plus บนเครื่องของคุณ"
                 >
-                  <Download className="w-4 h-4" />
-                  <span className="hidden xl:inline">ติดตั้งแอป</span>
+                  <Download className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="hidden sm:inline">ติดตั้งแอป</span>
                 </button>
               )}
 
@@ -550,25 +614,60 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
             </div>
           </div>
 
-          {/* Quick Filter Horizontal Chips for Brands (Sorted A-Z) */}
-          <div className="mt-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-            {brands.map((brand) => {
-              const active = selectedBrand.toLowerCase() === brand.toLowerCase();
-              return (
-                <button
-                  key={brand}
-                  type="button"
-                  onClick={() => setSelectedBrand(brand)}
-                  className={`text-xs px-3 py-1 rounded-full font-bold whitespace-nowrap transition-all select-none shrink-0 ${
-                    active
-                      ? 'bg-amber-400 text-zinc-950 shadow-md shadow-amber-400/20'
-                      : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 border border-zinc-800'
-                  }`}
-                >
-                  {brand === 'All' ? 'ทั้งหมด' : brand}
-                </button>
-              );
-            })}
+          {/* Quick Filter Horizontal Chips for Brands (Scrollable on Desktop with Arrows & Wheel) */}
+          <div className="relative mt-2.5 flex items-center group">
+            {/* Left Scroll Arrow (Desktop) */}
+            {canScrollLeft && (
+              <button
+                type="button"
+                onClick={() => scrollBrandBar('left')}
+                className="hidden sm:flex absolute left-0 z-10 h-full w-9 items-center justify-start bg-gradient-to-r from-zinc-950 via-zinc-950/90 to-transparent text-zinc-400 hover:text-amber-400 transition-colors cursor-pointer"
+                aria-label="เลื่อนซ้าย"
+              >
+                <div className="w-6 h-6 rounded-full bg-zinc-900 border border-zinc-700/80 flex items-center justify-center shadow-md hover:bg-zinc-800 text-zinc-300 hover:text-amber-400">
+                  <ChevronLeft className="w-4 h-4" />
+                </div>
+              </button>
+            )}
+
+            {/* Chips Container */}
+            <div
+              ref={brandBarRef}
+              onWheel={handleBrandWheel}
+              className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 scroll-smooth"
+            >
+              {brands.map((brand) => {
+                const active = selectedBrand.toLowerCase() === brand.toLowerCase();
+                return (
+                  <button
+                    key={brand}
+                    type="button"
+                    onClick={() => setSelectedBrand(brand)}
+                    className={`text-xs px-3 py-1 rounded-full font-bold whitespace-nowrap transition-all select-none shrink-0 cursor-pointer ${
+                      active
+                        ? 'bg-amber-400 text-zinc-950 shadow-md shadow-amber-400/20'
+                        : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 border border-zinc-800'
+                    }`}
+                  >
+                    {brand === 'All' ? 'ทั้งหมด' : brand}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Right Scroll Arrow (Desktop) */}
+            {canScrollRight && (
+              <button
+                type="button"
+                onClick={() => scrollBrandBar('right')}
+                className="hidden sm:flex absolute right-0 z-10 h-full w-9 items-center justify-end bg-gradient-to-l from-zinc-950 via-zinc-950/90 to-transparent text-zinc-400 hover:text-amber-400 transition-colors cursor-pointer"
+                aria-label="เลื่อนขวา"
+              >
+                <div className="w-6 h-6 rounded-full bg-zinc-900 border border-zinc-700/80 flex items-center justify-center shadow-md hover:bg-zinc-800 text-zinc-300 hover:text-amber-400">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </button>
+            )}
           </div>
 
           {/* Secondary Filter & Sort Toolbar */}
@@ -993,7 +1092,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       {/* ============================================================== */}
       {/* MOBILE BOTTOM NAVIGATION BAR                                   */}
       {/* ============================================================== */}
-      <nav className="sm:hidden fixed bottom-0 inset-x-0 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800 z-40 px-8 py-2 flex justify-around items-center">
+      <nav className="sm:hidden fixed bottom-0 inset-x-0 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800 z-40 px-6 py-2 flex justify-around items-center">
         {/* หน้าหลัก */}
         <button
           type="button"
@@ -1022,6 +1121,18 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
             </span>
           )}
         </button>
+
+        {/* ติดตั้งแอปบนมือถือ */}
+        {!isAlreadyInstalled && (
+          <button
+            type="button"
+            onClick={handleInstallPwa}
+            className="flex flex-col items-center gap-1 p-1 text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors"
+          >
+            <Download className="w-5 h-5 text-amber-400" />
+            <span className="text-amber-400 font-extrabold">ติดตั้งแอป</span>
+          </button>
+        )}
       </nav>
 
       {/* ============================================================== */}
@@ -1056,6 +1167,71 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
         onClose={() => setIsPolicyModalOpen(false)}
         initialTab={policyTab}
       />
+
+      {/* ============================================================== */}
+      {/* PWA INSTALLATION GUIDE MODAL                                    */}
+      {/* ============================================================== */}
+      {isInstallModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setIsInstallModalOpen(false)}
+        >
+          <div
+            className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl relative text-zinc-100 flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-400 text-zinc-950 flex items-center justify-center font-bold">
+                  <Download className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-bold text-white">ติดตั้งแอป TOOL SHOP 226</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsInstallModalOpen(false)}
+                className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs sm:text-sm text-zinc-300">
+              {isIosDevice ? (
+                <>
+                  <p className="font-semibold text-amber-400">วิธีติดตั้งบน iPhone / iPad (Safari):</p>
+                  <ol className="list-decimal list-inside space-y-2 text-zinc-300">
+                    <li>แตะที่ปุ่ม <strong className="text-white">แชร์ (Share)</strong> ด้านล่าง (ไอคอนรูปสี่เหลี่ยมลูกศรชี้ขึ้น)</li>
+                    <li>เลื่อนลงมาแล้วเลือก <strong className="text-amber-400">"เพิ่มไปยังหน้าจอโฮม" (Add to Home Screen)</strong></li>
+                    <li>แตะปุ่ม <strong className="text-white">"เพิ่ม" (Add)</strong> ที่มุมขวาบน</li>
+                  </ol>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold text-amber-400">วิธีติดตั้งบน Android / Chrome:</p>
+                  <ol className="list-decimal list-inside space-y-2 text-zinc-300">
+                    <li>แตะที่ปุ่ม <strong className="text-white">จุดสามจุด (⋮)</strong> ที่มุมขวาบนของเบราว์เซอร์</li>
+                    <li>เลือกคำว่า <strong className="text-amber-400">"ติดตั้งแอป"</strong> หรือ <strong className="text-amber-400">"เพิ่มลงในหน้าจอหลัก"</strong></li>
+                    <li>กดยืนยันเพื่อติดตั้งไอคอนแอปลงบนหน้าจอ</li>
+                  </ol>
+                </>
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-zinc-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsInstallModalOpen(false)}
+                className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-zinc-950 font-bold rounded-xl text-xs transition-colors shadow-md cursor-pointer"
+              >
+                เข้าใจแล้ว
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
