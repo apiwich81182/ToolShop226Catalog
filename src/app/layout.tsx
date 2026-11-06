@@ -12,21 +12,30 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://www.toolshop226catalog.com'),
   title: 'TOOL SHOP 226 Plus | ศูนย์รวมเครื่องมือช่างและอุปกรณ์ฮาร์ดแวร์ครบวงจร',
   description:
-    'แคตาล็อกเครื่องมือช่างแท้ 100% สเปกละเอียด แบรนด์ชั้นนำ SATA, ASAHI, PB Swiss Tools, Makita, Bosch, DeWalt, Milwaukee ราคาส่ง พร้อมส่งทั่วประเทศ ออกใบกำกับภาษีได้',
+    'แหล่งรวมเครื่องมือช่างคุณภาพ ราคาขายส่ง บริการจัดส่งทั่วประเทศ ไม่มีขั้นต่ำ อาทิเช่น KEIBA , KNIPEX , SATA , ASAHI , VESSEL , CONSO , KINGTONY , PB SWISS TOOLS',
   keywords: [
+    'toolshop226',
+    'toolshop226catalog',
+    'TOOL SHOP 226 Plus',
     'เครื่องมือช่าง',
+    'ราคาขายส่ง',
     'เครื่องมือช่างราคาส่ง',
     'อุปกรณ์ฮาร์ดแวร์',
+    'KEIBA',
+    'KNIPEX',
     'SATA',
     'ASAHI',
+    'VESSEL',
+    'CONSO',
+    'KINGTONY',
     'PB Swiss Tools',
+    'PB SWISS TOOLS',
     'Makita',
     'Bosch',
     'DeWalt',
     'Milwaukee',
     'ใบเสนอราคาเครื่องมือช่าง',
     'ออกใบกำกับภาษี',
-    'TOOL SHOP 226 Plus',
   ],
   alternates: {
     canonical: 'https://www.toolshop226catalog.com',
@@ -66,7 +75,7 @@ export const metadata: Metadata = {
     siteName: 'TOOL SHOP 226 Plus',
     title: 'TOOL SHOP 226 Plus | ศูนย์รวมเครื่องมือช่างแท้ 100% ราคาส่ง',
     description:
-      'ค้นหาแคตาล็อกเครื่องมือช่างและอุปกรณ์ฮาร์ดแวร์กว่าแสนรายการ สเปกละเอียด ขอใบเสนอราคาและสั่งซื้อผ่าน LINE ได้ทันที',
+      'แหล่งรวมเครื่องมือช่างคุณภาพ ราคาขายส่ง บริการจัดส่งทั่วประเทศ ไม่มีขั้นต่ำ อาทิเช่น KEIBA , KNIPEX , SATA , ASAHI , VESSEL , CONSO , KINGTONY , PB SWISS TOOLS',
     images: [
       {
         url: '/logo.png',
@@ -79,7 +88,8 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary',
     title: 'TOOL SHOP 226 Plus | ศูนย์รวมเครื่องมือช่างแท้ 100%',
-    description: 'แคตาล็อกเครื่องมือช่างและอุปกรณ์ฮาร์ดแวร์ครบวงจร ราคาส่ง ออกใบกำกับภาษีได้',
+    description:
+      'แหล่งรวมเครื่องมือช่างคุณภาพ ราคาขายส่ง บริการจัดส่งทั่วประเทศ ไม่มีขั้นต่ำ อาทิเช่น KEIBA , KNIPEX , SATA , ASAHI , VESSEL , CONSO , KINGTONY , PB SWISS TOOLS',
     images: ['/logo.png'],
   },
 };
@@ -92,7 +102,7 @@ const jsonLd = {
   logo: 'https://www.toolshop226catalog.com/logo.png',
   image: 'https://www.toolshop226catalog.com/logo.png',
   description:
-    'ศูนย์รวมเครื่องมือช่างและอุปกรณ์ฮาร์ดแวร์ครบวงจร ราคาส่ง สเปกละเอียด แบรนด์แท้ 100% พร้อมส่งทั่วประเทศ ออกใบกำกับภาษีได้',
+    'แหล่งรวมเครื่องมือช่างคุณภาพ ราคาขายส่ง บริการจัดส่งทั่วประเทศ ไม่มีขั้นต่ำ อาทิเช่น KEIBA , KNIPEX , SATA , ASAHI , VESSEL , CONSO , KINGTONY , PB SWISS TOOLS',
   priceRange: '฿฿',
   address: {
     '@type': 'PostalAddress',
