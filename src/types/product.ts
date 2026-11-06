@@ -59,8 +59,3 @@ export interface ProductQueryResult {
   missingImagesCount?: number;
 }
 
-export interface QuotationItem {
-  product: Product;
-  quantity: number;
-}
-
