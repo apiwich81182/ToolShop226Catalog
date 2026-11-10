@@ -21,7 +21,24 @@ export async function fetchBrands(): Promise<string[]> {
         .order('name', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        const unique = Array.from(new Set(data.map((b: { name: string }) => b.name?.trim()).filter(Boolean)));
+        // Case-insensitive deduplication, preferring PascalCase / CamelCase (e.g. DeWalt over Dewalt)
+        const map = new Map<string, string>();
+        for (const item of data) {
+          const raw = (item.name || '').trim();
+          if (raw) {
+            const key = raw.toLowerCase();
+            const existing = map.get(key);
+            if (!existing) {
+              map.set(key, raw);
+            } else if (raw !== existing && /[A-Z]/.test(raw.slice(1)) && !/[A-Z]/.test(existing.slice(1))) {
+              // Prefer DeWalt over Dewalt
+              map.set(key, raw);
+            }
+          }
+        }
+        const unique = Array.from(map.values()).sort((a, b) =>
+          a.localeCompare(b, 'en', { sensitivity: 'base' })
+        );
         if (unique.length > 0) return unique;
       }
     } catch (e) {
@@ -34,7 +51,18 @@ export async function fetchBrands(): Promise<string[]> {
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const map = new Map<string, string>();
+          for (const item of parsed) {
+            const raw = (item || '').trim();
+            if (raw && !map.has(raw.toLowerCase())) {
+              map.set(raw.toLowerCase(), raw);
+            }
+          }
+          return Array.from(map.values()).sort((a, b) =>
+            a.localeCompare(b, 'en', { sensitivity: 'base' })
+          );
+        }
       } catch (e) {
         console.error('Failed to parse cached brands', e);
       }
@@ -45,7 +73,16 @@ export async function fetchBrands(): Promise<string[]> {
 }
 
 export async function saveBrands(brands: string[]): Promise<string[]> {
-  const unique = Array.from(new Set(brands.map((b) => b.trim()).filter(Boolean)));
+  const map = new Map<string, string>();
+  brands.forEach((b) => {
+    const trimmed = (b || '').trim();
+    if (trimmed && !map.has(trimmed.toLowerCase())) {
+      map.set(trimmed.toLowerCase(), trimmed);
+    }
+  });
+  const unique = Array.from(map.values()).sort((a, b) =>
+    a.localeCompare(b, 'en', { sensitivity: 'base' })
+  );
 
   if (isSupabaseConfigured()) {
     try {
@@ -60,6 +97,104 @@ export async function saveBrands(brands: string[]): Promise<string[]> {
     localStorage.setItem(BRANDS_STORAGE_KEY, JSON.stringify(unique));
   }
   return unique;
+}
+
+/**
+ * Permanently delete a brand from database and local storage.
+ * If reassignToBrand is provided, updates all products using this brand to the new brand.
+ */
+export async function deleteBrand(brandName: string, reassignToBrand?: string): Promise<void> {
+  const trimmed = (brandName || '').trim();
+  if (!trimmed) return;
+
+  const targetBrand = (reassignToBrand || '').trim();
+
+  if (isSupabaseConfigured()) {
+    try {
+      // 1. If reassigning to another brand, update products in Supabase
+      if (targetBrand && targetBrand.toLowerCase() !== trimmed.toLowerCase()) {
+        const { error: updateError } = await supabase
+          .from('products')
+          .update({ brand: targetBrand, updated_at: new Date().toISOString() })
+          .ilike('brand', trimmed);
+
+        if (updateError) {
+          console.warn('Failed to reassign products in Supabase:', updateError);
+        }
+      } else if (targetBrand && targetBrand.toLowerCase() === trimmed.toLowerCase() && targetBrand !== trimmed) {
+        // Casing fix (e.g. Dewalt -> DeWalt)
+        const { error: updateError } = await supabase
+          .from('products')
+          .update({ brand: targetBrand, updated_at: new Date().toISOString() })
+          .eq('brand', trimmed);
+
+        if (updateError) {
+          console.warn('Failed to fix product brand casing in Supabase:', updateError);
+        }
+      }
+
+      // 2. Delete brand row from Supabase brands table
+      // If targetBrand has same letters (case fix), only delete the exact old casing
+      if (targetBrand && targetBrand.toLowerCase() === trimmed.toLowerCase()) {
+        const { error: deleteError } = await supabase
+          .from('brands')
+          .delete()
+          .eq('name', trimmed);
+
+        if (deleteError) {
+          console.error('Supabase brand delete exact error:', deleteError);
+        }
+      } else {
+        // Delete both case-insensitive and exact to ensure complete removal
+        const { error: deleteError } = await supabase
+          .from('brands')
+          .delete()
+          .ilike('name', trimmed);
+
+        if (deleteError) {
+          console.error('Supabase brand delete ilike error:', deleteError);
+          await supabase.from('brands').delete().eq('name', trimmed);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to delete brand from Supabase:', e);
+    }
+  }
+
+  // 3. Sync LocalStorage
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem(BRANDS_STORAGE_KEY);
+      if (cached) {
+        const list: string[] = JSON.parse(cached);
+        const updated = list.filter((b) => b.trim().toLowerCase() !== trimmed.toLowerCase());
+        if (targetBrand && !updated.some((b) => b.trim().toLowerCase() === targetBrand.toLowerCase())) {
+          updated.push(targetBrand);
+        }
+        localStorage.setItem(BRANDS_STORAGE_KEY, JSON.stringify(updated));
+      }
+
+      // Reassign local products cache if needed
+      if (targetBrand) {
+        const cachedProds = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (cachedProds) {
+          const prods: Product[] = JSON.parse(cachedProds);
+          let changed = false;
+          prods.forEach((p) => {
+            if ((p.brand || '').trim().toLowerCase() === trimmed.toLowerCase()) {
+              p.brand = targetBrand;
+              changed = true;
+            }
+          });
+          if (changed) {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(prods));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to update localStorage after brand deletion:', e);
+    }
+  }
 }
 
 /**
@@ -686,9 +821,14 @@ export async function bulkUpsertProducts(
 
     // Auto-sync unique brands to the brands table
     try {
-      const uniqueBrands = Array.from(
-        new Set(products.map((p) => p.brand.trim()).filter(Boolean))
-      );
+      const brandMap = new Map<string, string>();
+      products.forEach((p) => {
+        const raw = (p.brand || '').trim();
+        if (raw && !brandMap.has(raw.toLowerCase())) {
+          brandMap.set(raw.toLowerCase(), raw);
+        }
+      });
+      const uniqueBrands = Array.from(brandMap.values());
       if (uniqueBrands.length > 0) {
         const brandPayload = uniqueBrands.map((b) => ({ name: b }));
         await supabase.from('brands').upsert(brandPayload, { onConflict: 'name' });

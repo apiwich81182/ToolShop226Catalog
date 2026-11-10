@@ -759,6 +759,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           setBrands(sorted);
           saveBrands(sorted);
         }}
+        onBrandDeleted={async (deletedBrand, reassignTo) => {
+          if (reassignTo) {
+            setLocalProducts((prev) =>
+              prev.map((p) =>
+                (p.brand || '').trim().toLowerCase() === deletedBrand.trim().toLowerCase()
+                  ? { ...p, brand: reassignTo }
+                  : p
+              )
+            );
+          }
+          if (selectedBrandFilter.toLowerCase() === deletedBrand.toLowerCase()) {
+            setSelectedBrandFilter(reassignTo || 'All');
+          }
+          if (onRefresh) {
+            await onRefresh();
+          }
+        }}
       />
 
       {/* Admin SOP / How-to Guide Modal */}

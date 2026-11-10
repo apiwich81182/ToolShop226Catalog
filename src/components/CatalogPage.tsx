@@ -294,18 +294,35 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     }
   };
 
-  // Extract unique brands dynamically and sort A-Z
+  // Extract unique brands dynamically and sort A-Z (Authoritative list from availableBrands, case-insensitive deduplicated)
   const brands = useMemo(() => {
-    const list = new Set<string>();
-    if (availableBrands) {
+    const map = new Map<string, string>();
+
+    // 1. If availableBrands is provided, use it as the source of truth for filters
+    if (availableBrands && availableBrands.length > 0) {
       availableBrands.forEach((b) => {
-        if (b && b.trim()) list.add(b.trim());
+        const trimmed = (b || '').trim();
+        if (trimmed) {
+          const key = trimmed.toLowerCase();
+          if (!map.has(key)) {
+            map.set(key, trimmed);
+          }
+        }
+      });
+    } else {
+      // 2. Fallback: derive brands from loaded products if availableBrands is empty
+      products.forEach((p) => {
+        const trimmed = (p.brand || '').trim();
+        if (trimmed) {
+          const key = trimmed.toLowerCase();
+          if (!map.has(key)) {
+            map.set(key, trimmed);
+          }
+        }
       });
     }
-    products.forEach((p) => {
-      if (p.brand && p.brand.trim()) list.add(p.brand.trim());
-    });
-    const sorted = Array.from(list).sort((a, b) =>
+
+    const sorted = Array.from(map.values()).sort((a, b) =>
       a.localeCompare(b, 'en', { sensitivity: 'base' })
     );
     return ['All', ...sorted];
@@ -707,7 +724,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                   {/* Scrollable list of brands (Sorted A-Z) */}
                   <div className="max-h-48 overflow-y-auto space-y-0.5 no-scrollbar">
                     {filteredBrandsForDropdown.map((b) => {
-                      const isSelected = selectedBrand === b;
+                      const isSelected = selectedBrand.toLowerCase() === b.toLowerCase();
                       return (
                         <button
                           key={b}
